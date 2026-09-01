@@ -308,8 +308,8 @@ export const mockAllClasses: CourseClass[] = [...mockClasses, ...buildInstitutio
  * policy: changing it here must move every admin surface that reads settings.
  */
 export const mockInstitutionSettings: InstitutionSettings = {
-  institutionName: 'Sardar Institute of Technology',
-  institutionCode: 'SIT',
+  institutionName: 'Christ University',
+  institutionCode: 'CU',
   attendanceThreshold: 75,
   academicSession: '2026-27',
   departments: [...MOCK_DEPARTMENTS],
