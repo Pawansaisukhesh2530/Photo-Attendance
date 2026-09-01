@@ -1,0 +1,51 @@
+rules:
+  # Allow Kiro to read project files
+  - capability: fs_read
+    effect: allow
+
+  # Allow Kiro to modify files in your project
+  - capability: fs_write
+    match:
+      - "src/**"
+      - "assets/**"
+      - "app.json"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "babel.config.js"
+      - "expo-env.d.ts"
+    effect: allow
+
+  # Normal development commands
+  - capability: shell
+    match:
+      - "npm *"
+      - "npx *"
+      - "node *"
+      - "git status"
+      - "git diff"
+      - "git log *"
+      - "git branch *"
+    effect: allow
+
+  # Allow Stitch MCP tools
+  - capability: mcp
+    match:
+      - "stitch/*"
+    effect: allow
+
+  # Protect secrets
+  - capability: fs_write
+    match:
+      - "*.env"
+      - "*.env.*"
+      - "*.pem"
+      - "*.key"
+    effect: deny
+
+  # Protect dangerous shell commands
+  - capability: shell
+    match:
+      - "rm -rf *"
+      - "sudo *"
+    effect: deny
