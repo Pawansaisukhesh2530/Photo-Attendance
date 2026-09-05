@@ -9,7 +9,6 @@ import {
   Badge,
   Card,
   ClassAttendanceBar,
-  ClassCodeTag,
   EmptyState,
   ErrorState,
   FilterChips,

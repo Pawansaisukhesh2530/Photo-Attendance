@@ -1,27 +1,8 @@
 import type { AuditService } from '@/services/contracts';
 import type { AuditEntry, AuditQuery, Paginated } from '@/types';
-
 import { request } from './client';
-
-function auditFilters(query?: AuditQuery) {
-  return {
-    sessionId: query?.sessionId,
-    studentId: query?.studentId,
-    actorId: query?.actorId,
-    action: query?.action,
-    entityType: query?.entityType,
-    from: query?.from,
-    to: query?.to,
-    search: query?.search,
-  };
-}
-
-export const auditApi: AuditService = {
-  getAuditEntries: (query) =>
-    request<AuditEntry[]>('audit', { query: auditFilters(query) }),
-
-  getPagedAuditEntries: (query) =>
-    request<Paginated<AuditEntry>>('audit/paged', {
-      query: { ...auditFilters(query), page: query?.page, pageSize: query?.pageSize },
-    }),
-};
+type Raw={id:string;action:string;entity_type:string;entity_id:string;before:Record<string,unknown>|null;after:Record<string,unknown>|null;reason:string|null;created_at:string};
+type RawPage={items:Raw[];page:number;page_size:number;total:number;has_more:boolean};
+const map=(x:Raw):AuditEntry=>({id:x.id,action:x.action as AuditEntry['action'],at:x.created_at,actorId:'',actorName:'System',actorRole:'System',sessionId:x.entity_type==='attendance_sessions'?x.entity_id:null,classDisplayCode:null,studentId:x.entity_type==='students'?x.entity_id:null,studentName:null,rollNumber:null,previousStatus:(x.before?.status as AuditEntry['previousStatus'])??null,newStatus:(x.after?.status as AuditEntry['newStatus'])??null,reason:x.reason,entityId:x.entity_id,entityLabel:x.entity_type,previousValue:x.before?JSON.stringify(x.before):null,newValue:x.after?JSON.stringify(x.after):null});
+const load=(q?:AuditQuery)=>request<RawPage>('audit',{query:{page:q?.page,page_size:q?.pageSize}});
+export const auditApi:AuditService={async getAuditEntries(q){return (await load({...q,pageSize:100})).items.map(map)},async getPagedAuditEntries(q){const p=await load(q);return {items:p.items.map(map),page:p.page,pageSize:p.page_size,total:p.total,hasMore:p.has_more} as Paginated<AuditEntry>}};

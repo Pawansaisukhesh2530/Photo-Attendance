@@ -19,7 +19,7 @@ import { useClasses } from '@/hooks/useClasses';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { CourseClass } from '@/types';
 
-/** Filters derived from the mock roster. A real backend would supply the facets. */
+/** Filters derived from the class catalogue returned by the backend. */
 type ClassFilter = 'ALL' | 'SEM_3' | 'SEM_5' | 'LABS';
 
 const FILTERS: FilterChipOption<ClassFilter>[] = [

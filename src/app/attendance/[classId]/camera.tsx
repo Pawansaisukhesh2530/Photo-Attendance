@@ -16,10 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isApiError } from '@/api/client';
 import { AnimatedPressable, Button, CameraFramingGuide, Icon, Text } from '@/components';
-import { useCaptureAttendance } from '@/hooks/useAttendanceCapture';
+import { useCaptureAttendance, usePreparePanorama } from '@/hooks/useAttendanceCapture';
 import { useClasses } from '@/hooks/useClasses';
 import { usePreferencesStore } from '@/store/preferences';
 import { palette, radius, spacing, touch } from '@/theme';
+import type { AttendanceCaptureMode, PanoramaPreview } from '@/types';
 
 type Phase = 'preview' | 'captured' | 'submitting';
 
@@ -69,6 +70,7 @@ export default function CameraScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const capture = useCaptureAttendance();
+  const preparePanorama = usePreparePanorama();
 
   /*
     Framing-guide preference, read live from the device store.
@@ -104,14 +106,41 @@ export default function CameraScreen() {
     [selectedClassIds, allClasses],
   );
 
-  const course = selectedClasses[0];
-
   const cameraRef = useRef<CameraView>(null);
+  const [captureMode, setCaptureMode] = useState<AttendanceCaptureMode>('STANDARD');
+  const [pictureSize, setPictureSize] = useState<string | undefined>();
   const [phase, setPhase] = useState<Phase>('preview');
-  const [photo, setPhoto] = useState<CameraCapturedPicture | null>(null);
+  const [photos, setPhotos] = useState<CameraCapturedPicture[]>([]);
+  const photo = photos[photos.length - 1] ?? null;
+  const [panoramaPreview, setPanoramaPreview] = useState<PanoramaPreview | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [recordingPanorama, setRecordingPanorama] = useState(false);
+  const [submittingPanorama, setSubmittingPanorama] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleCameraReady = useCallback(async (): Promise<void> => {
+    setCameraReady(true);
+
+    // Expo's default can vary by device. Select the sensor's largest advertised still size
+    // so a distant face retains as many source pixels as the phone can provide.
+    if (!cameraRef.current || captureMode !== 'STANDARD') return;
+    try {
+      const sizes = await cameraRef.current.getAvailablePictureSizesAsync();
+      const largest = sizes.reduce<string | undefined>((best, candidate) => {
+        const area = (value: string | undefined): number => {
+          const dimensions = (value ?? '').split('x');
+          const width = Number(dimensions[0]);
+          const height = Number(dimensions[1]);
+          return Number.isFinite(width) && Number.isFinite(height) ? width * height : 0;
+        };
+        return area(candidate) > area(best) ? candidate : best;
+      }, undefined);
+      if (largest) setPictureSize(largest);
+    } catch {
+      // The device default is still usable when it does not expose a size list.
+    }
+  }, [captureMode]);
 
   /**
    * Compact scope context.
@@ -156,7 +185,7 @@ export default function CameraScreen() {
         return;
       }
 
-      setPhoto(result);
+      setPhotos((current) => [...current, result].slice(0, 8));
       setPhase('captured');
     } catch {
       setError('The camera failed to take a photo. Please try again.');
@@ -166,13 +195,15 @@ export default function CameraScreen() {
   }, [cameraReady, capturing]);
 
   const handleRetake = useCallback((): void => {
-    setPhoto(null);
+    if (captureMode === 'PANORAMA') setPanoramaPreview(null);
+    else setPhotos((current) => current.slice(0, -1));
     setError(null);
     setPhase('preview');
-  }, []);
+  }, [captureMode]);
 
   const handleContinue = useCallback(async (): Promise<void> => {
-    if (!photo || !classId) return;
+    const reviewUri = captureMode === 'PANORAMA' ? panoramaPreview?.photoUri : photo?.uri;
+    if (!reviewUri || !classId) return;
     setPhase('submitting');
     setError(null);
 
@@ -180,9 +211,9 @@ export default function CameraScreen() {
       const session = await capture.mutateAsync({
         // The selected classes are the recognition scope and must reach the service.
         classIds: selectedClassIds,
-        photoUri: photo.uri,
-        width: photo.width,
-        height: photo.height,
+        captureMode,
+        photos: captureMode === 'PANORAMA' ? [] : photos,
+        panoramaDraftId: panoramaPreview?.id,
       });
 
       // `replace`, so a back gesture from processing cannot return to a viewfinder still
@@ -197,7 +228,58 @@ export default function CameraScreen() {
         isApiError(caught) ? caught.message : 'The photo could not be uploaded. Please try again.',
       );
     }
-  }, [photo, classId, capture, selectedClassIds]);
+  }, [captureMode, panoramaPreview, photo, photos, classId, capture, selectedClassIds]);
+
+  const handlePanoramaCapture = useCallback(async (): Promise<void> => {
+    if (!cameraRef.current || !cameraReady || !classId || submittingPanorama) return;
+
+    if (recordingPanorama) {
+      cameraRef.current.stopRecording();
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      setError('Panorama capture is available in the Android and iOS app.');
+      return;
+    }
+
+    setError(null);
+    setRecordingPanorama(true);
+
+    try {
+      const result = await cameraRef.current.recordAsync({
+        maxDuration: 12,
+        // A short 4K sweep can exceed 30 MB. Keep a safety ceiling without truncating a
+        // normal classroom sweep before the lecturer reaches the other side.
+        maxFileSize: 200 * 1024 * 1024,
+      });
+
+      if (!result?.uri) {
+        setError('The panorama sweep could not be saved. Please try again.');
+        return;
+      }
+
+      setSubmittingPanorama(true);
+      const preview = await preparePanorama.mutateAsync(result.uri);
+      setPanoramaPreview(preview);
+      setPhase('captured');
+    } catch (caught) {
+      setError(
+        isApiError(caught)
+          ? caught.message
+          : 'The panorama sweep could not be uploaded. Please try again.',
+      );
+    } finally {
+      setRecordingPanorama(false);
+      setSubmittingPanorama(false);
+    }
+  }, [
+    cameraReady,
+    classId,
+    preparePanorama,
+    recordingPanorama,
+    submittingPanorama,
+  ]);
 
   /* ================================================================ *
    * Permission: resolving
@@ -302,6 +384,8 @@ export default function CameraScreen() {
 
   if (phase === 'captured' || phase === 'submitting') {
     const busy = phase === 'submitting';
+    const reviewingPanorama = captureMode === 'PANORAMA';
+    const reviewUri = reviewingPanorama ? panoramaPreview?.photoUri : photo?.uri;
 
     return (
       <View style={styles.shell}>
@@ -319,7 +403,7 @@ export default function CameraScreen() {
 
           <View style={styles.headerText}>
             <Text variant="titleLg" color={palette.surfaceContainerLowest} numberOfLines={1}>
-              Review photo
+              {reviewingPanorama ? 'Review panorama' : 'Review photo'}
             </Text>
             <Text variant="labelMd" color={palette.outlineVariant} numberOfLines={1}>
               {contextLine}
@@ -333,7 +417,7 @@ export default function CameraScreen() {
           cropping the edges of the frame they are about to commit would be the wrong trade.
         */}
         <Image
-          source={{ uri: photo?.uri ?? '' }}
+          source={{ uri: reviewUri ?? '' }}
           style={StyleSheet.absoluteFill}
           contentFit="contain"
           transition={140}
@@ -358,7 +442,9 @@ export default function CameraScreen() {
           <View style={styles.busyOverlay}>
             <ActivityIndicator size="large" color={palette.surfaceContainerLowest} />
             <Text variant="bodyLg" color={palette.surfaceContainerLowest}>
-              Uploading photo…
+              {reviewingPanorama
+                ? 'Preparing attendance from panorama…'
+                : `Uploading ${photos.length} photo${photos.length === 1 ? '' : 's'}…`}
             </Text>
           </View>
         ) : null}
@@ -375,24 +461,44 @@ export default function CameraScreen() {
             <View style={styles.hint}>
               <Icon name="info" size={16} color={palette.outlineVariant} />
               <Text variant="bodyMd" color={palette.outlineVariant} style={styles.flex}>
-                Check that faces are visible and the photo is sharp.
+                {reviewingPanorama
+                  ? 'Pan across the preview and check that the whole classroom is visible.'
+                  : `Photo ${photos.length} saved. Check that faces are visible and the photo is sharp.`}
               </Text>
             </View>
           )}
 
           <Button
-            label={error ? 'Retry upload' : 'Use this photo'}
+            label={
+              error
+                ? 'Retry upload'
+                : reviewingPanorama
+                  ? 'Use this panorama'
+                  : `Process ${photos.length} photo${photos.length === 1 ? '' : 's'}`
+            }
             icon="forward"
             iconPosition="trailing"
             size="lg"
             fullWidth
             loading={busy}
             onPress={() => void handleContinue()}
-            accessibilityHint="Sends the photo for attendance processing"
+            accessibilityHint="Sends the classroom capture for attendance processing"
           />
 
+          {!reviewingPanorama ? (
+            <Button
+              label={photos.length < 8 ? 'Add another angle' : 'Maximum 8 photos'}
+              icon="camera"
+              variant="secondary"
+              size="lg"
+              fullWidth
+              disabled={busy || photos.length >= 8}
+              onPress={() => { setError(null); setPhase('preview'); }}
+            />
+          ) : null}
+
           <Button
-            label="Retake"
+            label={reviewingPanorama ? 'Retake panorama' : 'Retake'}
             icon="retake"
             variant="secondary"
             size="lg"
@@ -423,7 +529,11 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
-        onCameraReady={() => setCameraReady(true)}
+        mode={captureMode === 'PANORAMA' ? 'video' : 'picture'}
+        pictureSize={captureMode === 'STANDARD' ? pictureSize : undefined}
+        mute
+        videoQuality="2160p"
+        onCameraReady={() => void handleCameraReady()}
         onMountError={() =>
           setError('The camera is unavailable on this device. Try restarting the app.')
         }
@@ -501,9 +611,9 @@ export default function CameraScreen() {
 
         {cameraReady ? (
           <View style={styles.livePill}>
-            <View style={styles.liveDot} />
+            <View style={[styles.liveDot, recordingPanorama && styles.recordingDot]} />
             <Text variant="labelMd" color={palette.onSurface}>
-              Live
+              {recordingPanorama ? 'Recording sweep' : 'Live'}
             </Text>
           </View>
         ) : null}
@@ -511,6 +621,38 @@ export default function CameraScreen() {
 
       {/* Layer 5 — controls, pinned above the bottom safe area */}
       <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.md }]}>
+        {!recordingPanorama && !submittingPanorama ? (
+          <View style={styles.modeSelector} accessibilityRole="radiogroup">
+            {(['STANDARD', 'PANORAMA'] as const).map((mode) => {
+              const selected = captureMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  onPress={() => {
+                    setCaptureMode(mode);
+                    setError(null);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  style={[styles.modeOption, selected && styles.modeOptionSelected]}
+                >
+                  <Icon
+                    name={mode === 'PANORAMA' ? 'panorama' : 'camera'}
+                    size={17}
+                    color={selected ? palette.onPrimary : palette.surfaceContainerLowest}
+                  />
+                  <Text
+                    variant="labelMd"
+                    color={selected ? palette.onPrimary : palette.surfaceContainerLowest}
+                  >
+                    {mode === 'PANORAMA' ? 'Panorama' : 'Photo'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
         {error ? (
           <View style={styles.errorBanner}>
             <Icon name="error" size={18} color={palette.onErrorContainer} />
@@ -523,10 +665,18 @@ export default function CameraScreen() {
             <Icon name="focus" size={18} color={palette.onPrimaryContainer} />
             <View style={styles.flex}>
               <Text variant="bodyMd" color={palette.onPrimaryContainer}>
-                Position the camera so that as many students as possible are visible.
+                {captureMode === 'PANORAMA'
+                  ? recordingPanorama
+                    ? 'Move slowly from left to right, keeping every row in view.'
+                    : 'Start at the left side of the room, then capture one smooth sweep.'
+                  : 'Position the camera so that as many students as possible are visible.'}
               </Text>
               <Text variant="labelMd" color={palette.onPrimaryContainer}>
-                Hold steady, keep the whole room in frame, and avoid steep angles.
+                {captureMode === 'PANORAMA'
+                  ? recordingPanorama
+                    ? 'Tap stop after reaching the right side. Maximum 12 seconds.'
+                    : 'Hold the phone sideways and keep it level while moving.'
+                  : 'Hold steady, keep the whole room in frame, and avoid steep angles.'}
               </Text>
             </View>
           </View>
@@ -534,30 +684,64 @@ export default function CameraScreen() {
 
         <View style={styles.shutterRow}>
           <AnimatedPressable
-            onPress={() => void handleCapture()}
-            disabled={!cameraReady || capturing}
+            onPress={() =>
+              void (captureMode === 'PANORAMA' ? handlePanoramaCapture() : handleCapture())
+            }
+            disabled={!cameraReady || capturing || submittingPanorama}
             feedback="scale"
             accessibilityRole="button"
-            accessibilityLabel="Capture classroom photo"
-            accessibilityHint="Takes one photograph of the classroom"
-            accessibilityState={{ disabled: !cameraReady || capturing }}
+            accessibilityLabel={
+              captureMode === 'PANORAMA'
+                ? recordingPanorama
+                  ? 'Finish panorama sweep'
+                  : 'Start panorama sweep'
+                : 'Capture classroom photo'
+            }
+            accessibilityHint={
+              captureMode === 'PANORAMA'
+                ? 'Records one silent sweep for the classroom panorama'
+                : 'Takes one photograph of the classroom'
+            }
+            accessibilityState={{
+              disabled: !cameraReady || capturing || submittingPanorama,
+            }}
             style={[
               styles.shutterRing,
-              (!cameraReady || capturing) && styles.shutterDisabled,
+              (!cameraReady || capturing || submittingPanorama) && styles.shutterDisabled,
             ]}
           >
-            <View style={styles.shutterCore}>
-              {capturing ? (
+            <View
+              style={[styles.shutterCore, recordingPanorama && styles.shutterCoreRecording]}
+            >
+              {capturing || submittingPanorama ? (
                 <ActivityIndicator color={palette.onPrimary} />
               ) : (
-                <Icon name="camera" size={32} color={palette.onPrimary} />
+                <Icon
+                  name={
+                    captureMode === 'PANORAMA'
+                      ? recordingPanorama
+                        ? 'stop'
+                        : 'panorama'
+                      : 'camera'
+                  }
+                  size={32}
+                  color={palette.onPrimary}
+                />
               )}
             </View>
           </AnimatedPressable>
         </View>
 
         <Text variant="labelMd" color={palette.outline} align="center">
-          One photo is all that is needed
+          {submittingPanorama
+            ? 'Uploading panorama sweep…'
+            : captureMode === 'PANORAMA'
+              ? recordingPanorama
+                ? 'Pan slowly · tap stop when the room is covered'
+                : 'One sweep captures the whole classroom'
+              : photos.length === 0
+                ? 'Take 3–4 overlapping angles for a large classroom'
+                : `${photos.length} of 8 photos captured`}
         </Text>
       </View>
     </View>
@@ -611,6 +795,9 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: radius.full,
     backgroundColor: palette.secondary,
+  },
+  recordingDot: {
+    backgroundColor: palette.error,
   },
 
   /* Full-bleed layers */
@@ -687,6 +874,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: palette.primaryContainer,
   },
+  modeSelector: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: 4,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(18, 18, 24, 0.72)',
+  },
+  modeOption: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+  },
+  modeOptionSelected: {
+    backgroundColor: palette.primary,
+  },
   hint: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -721,6 +927,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.primary,
+  },
+  shutterCoreRecording: {
+    backgroundColor: palette.error,
   },
   shutterDisabled: {
     opacity: 0.45,

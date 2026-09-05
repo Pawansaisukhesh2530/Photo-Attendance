@@ -8,24 +8,16 @@
  * readable by anyone who downloads the app.
  */
 
-/**
- * Flips the entire data layer between mock and real HTTP.
- *
- * This is the single switch the backend developer flips. Nothing else in the app
- * branches on it.
- */
-export const USE_MOCK_API =
-  process.env.EXPO_PUBLIC_USE_MOCK_API !== 'false';
-
-/** Base URL of the REST API. Unused while USE_MOCK_API is true. */
+/** Base URL of the REST API. */
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://api.edutrace.invalid/v1';
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8010/api/v1';
 
 /** Request timeout in ms. Generous, since classroom photo upload is on the same path. */
 export const API_TIMEOUT_MS = 30_000;
 
 /** Upload timeout in ms — a classroom photo over campus wifi can be slow. */
-export const UPLOAD_TIMEOUT_MS = 120_000;
+// Full-resolution stills and short 4K panorama sweeps are intentionally not downscaled.
+export const UPLOAD_TIMEOUT_MS = 300_000;
 
 /** Institutional attendance threshold, below which a student is flagged. */
 export const ATTENDANCE_THRESHOLD = 75;
@@ -38,8 +30,8 @@ export const ATTENDANCE_THRESHOLD = 75;
  * detail for face detection at classroom distance while cutting payload by roughly an
  * order of magnitude. The backend still receives one image per session.
  */
-export const PHOTO_MAX_DIMENSION = 2048;
-export const PHOTO_COMPRESSION_QUALITY = 0.8;
+export const PHOTO_MAX_DIMENSION = 4096;
+export const PHOTO_COMPRESSION_QUALITY = 0.92;
 
 /** Page size for virtualised rosters and history lists. */
 export const DEFAULT_PAGE_SIZE = 25;
@@ -48,6 +40,6 @@ export const DEFAULT_PAGE_SIZE = 25;
  * Upper bound the server will honour for `pageSize`.
  *
  * Present so a client cannot turn a paged endpoint back into an unpaged one by asking for
- * everything at once. The mock enforces it; the real backend must too.
+ * everything at once. The backend enforces it too.
  */
 export const MAX_PAGE_SIZE = 100;

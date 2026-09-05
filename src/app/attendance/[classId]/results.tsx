@@ -34,6 +34,8 @@ import {
   useUpdateAttendance,
 } from '@/hooks/useAttendance';
 import { palette, radius, spacing, useResponsive } from '@/theme';
+import { useAuthStore } from '@/store/authStore';
+import { attendanceService } from '@/services';
 import type {
   AttendanceRecord,
   AttendanceStatus,
@@ -75,6 +77,7 @@ export default function ResultsScreen() {
   const insets = useSafeAreaInsets();
   const { screenPadding, isExpanded } = useResponsive();
   const toast = useToast();
+  const readOnly = useAuthStore((state) => state.user?.role === 'ADMIN');
 
   const { data: session, isLoading, error, refetch, isRefetching } =
     useAttendanceSession(sessionId);
@@ -453,6 +456,8 @@ export default function ResultsScreen() {
       {showPhoto ? (
         <ClassroomPhotoViewer
           photoUri={session.photoUri}
+          photoWidth={session.photoWidth}
+          photoHeight={session.photoHeight}
           records={session.records}
           focusedRecordId={focusedRecordId}
           onSelectRecord={(record) => {
@@ -609,8 +614,8 @@ export default function ResultsScreen() {
         renderItem={({ item }) => (
           <StudentListItem
             record={item}
-            onPress={setEditing}
-            onResolve={handleResolve}
+            onPress={readOnly ? undefined : setEditing}
+            onResolve={readOnly ? undefined : handleResolve}
             showConfidence={!isFinalized}
           />
         )}
@@ -633,7 +638,7 @@ export default function ResultsScreen() {
         }
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + 96 },
+          { paddingBottom: insets.bottom + 144 },
           isExpanded && styles.listConstrained,
         ]}
         onRefresh={() => void refetch()}
@@ -648,15 +653,20 @@ export default function ResultsScreen() {
 
       {/* Sticky primary action */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <View style={styles.exportBar}>
+          {(['csv', 'xlsx', 'pdf', 'json'] as const).map((format) => (
+            <Button key={format} label={format.toUpperCase()} variant="ghost" size="sm" onPress={() => void attendanceService.downloadSession(sessionId, format).catch(() => toast.show({ message: 'Could not download the export.', tone: 'error' }))} />
+          ))}
+        </View>
         <Button
-          label={isFinalized ? 'Done' : 'Finalize attendance'}
-          icon={isFinalized ? 'present' : 'finalize'}
+          label={isFinalized || readOnly ? 'Done' : 'Finalize attendance'}
+          icon={isFinalized || readOnly ? 'present' : 'finalize'}
           size="lg"
           fullWidth
           loading={finalize.isPending}
-          onPress={() => (isFinalized ? router.dismissAll() : setShowFinalize(true))}
+          onPress={() => (isFinalized || readOnly ? router.dismissAll() : setShowFinalize(true))}
           accessibilityHint={
-            isFinalized
+            isFinalized || readOnly
               ? 'Closes the attendance flow'
               : 'Opens a confirmation before recording attendance'
           }
@@ -838,5 +848,11 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderTopColor: palette.outlineVariant,
+  },
+  exportBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
 });

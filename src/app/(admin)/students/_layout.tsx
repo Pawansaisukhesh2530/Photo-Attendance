@@ -14,6 +14,7 @@ export default function AdminStudentsLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="[studentId]" />
+      <Stack.Screen name="new" />
     </Stack>
   );
 }

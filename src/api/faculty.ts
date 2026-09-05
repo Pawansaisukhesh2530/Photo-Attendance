@@ -1,38 +1,11 @@
 import type { FacultyService } from '@/services/contracts';
 import type { Faculty, Paginated } from '@/types';
-
 import { request } from './client';
-
-/**
- * HTTP implementation of the faculty directory.
- *
- * Speculative, like every other file in this directory: these paths are the frontend's proposal to
- * the backend developer, not an agreed API. Nothing calls them while `USE_MOCK_API` is true.
- */
-export const facultyApi: FacultyService = {
-  getFacultyList: (query) =>
-    request<Paginated<Faculty>>('faculty', {
-      query: {
-        search: query?.search,
-        department: query?.department,
-        status: query?.status,
-        classId: query?.classId,
-        page: query?.page,
-        pageSize: query?.pageSize,
-      },
-    }),
-
-  getFacultyMember: (facultyId) => request<Faculty>(`faculty/${facultyId}`),
-
-  createFaculty: (payload) =>
-    request<Faculty>('faculty', { method: 'POST', body: payload }),
-
-  updateFaculty: (payload) =>
-    request<Faculty>(`faculty/${payload.facultyId}`, { method: 'PATCH', body: payload }),
-
-  setFacultyStatus: (facultyId, status) =>
-    request<Faculty>(`faculty/${facultyId}/status`, {
-      method: 'PATCH',
-      body: { status },
-    }),
+type WithVersion=Faculty&{version:number};
+export const facultyApi:FacultyService={
+ getFacultyList:q=>request<Paginated<Faculty>>('faculty',{query:{search:q?.search,department:q?.department,status:q?.status,classId:q?.classId,page:q?.page,page_size:q?.pageSize}}),
+ getFacultyMember:id=>request<Faculty>(`faculty/${id}`),
+ createFaculty:p=>request<Faculty>('faculty',{method:'POST',body:{email:p.email,password:'ChangeMe123!',employee_id:p.employeeId,name:p.name,department:p.department,designation:p.designation}}),
+ async updateFaculty(p){const old=await request<WithVersion>(`faculty/${p.facultyId}`);return request<Faculty>(`faculty/${p.facultyId}`,{method:'PATCH',body:{name:p.name,department:p.department,designation:p.designation,status:p.status,version:old.version}})},
+ setFacultyStatus:(id,status)=>request<Faculty>(`faculty/${id}/status`,{method:'PATCH',body:{status}}),
 };

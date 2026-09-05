@@ -1,8 +1,7 @@
 /**
  * Service interfaces.
  *
- * Both the real HTTP implementations (`src/api/*`) and the mock implementations
- * (`src/mocks/*`) satisfy these. Hooks depend only on these interfaces, which is what
+ * The HTTP implementations in `src/api/*` satisfy these. Hooks depend only on these interfaces,
  * makes the backend swap a one-line change in `services/index.ts` with no UI churn.
  *
  * Method names follow the vocabulary agreed in the project brief.
@@ -32,6 +31,8 @@ import type {
   InstitutionSettings,
   LoginRequest,
   Paginated,
+  PanoramaPreview,
+  PreparePanoramaRequest,
   UpdateClassRequest,
   UpdateEnrolmentRequest,
   UpdateFacultyRequest,
@@ -41,6 +42,8 @@ import type {
   ReportStudentQuery,
   ResolveTwinReviewRequest,
   Student,
+  CreateStudentRequest,
+  FaceImageInfo,
   StudentAttendanceStat,
   StudentProfile,
   StudentQuery,
@@ -153,9 +156,17 @@ export interface SettingsService {
 export interface StudentService {
   getStudents(query?: StudentQuery): Promise<Paginated<Student>>;
   getStudent(studentId: Id): Promise<StudentProfile>;
+  createStudent(request:CreateStudentRequest):Promise<Student>;
+  getFaceImages(studentId:Id):Promise<FaceImageInfo[]>;
+  uploadFaceImages(studentId:Id,uris:string[]):Promise<void>;
+  revokeFaceImage(studentId:Id,imageId:Id):Promise<void>;
+  reprocessFaceImages(studentId:Id):Promise<void>;
 }
 
 export interface AttendanceService {
+  /** Uploads and stitches a silent camera sweep without creating attendance yet. */
+  preparePanorama(request: PreparePanoramaRequest): Promise<PanoramaPreview>;
+
   /**
    * Submits the single classroom photograph and opens a session.
    *
@@ -168,7 +179,7 @@ export interface AttendanceService {
    * Streams pipeline progress for a session.
    *
    * Returns an unsubscribe function. The real implementation will poll or open a
-   * socket; the mock emits a scripted sequence. Either way the UI only ever sees
+   * socket. The UI only ever sees
    * `ProcessingProgress` values.
    */
   observeProcessing(
@@ -185,6 +196,7 @@ export interface AttendanceService {
   retryProcessing(sessionId: Id): Promise<AttendanceSession>;
 
   getAttendanceSession(sessionId: Id): Promise<AttendanceSession>;
+  downloadSession(sessionId: Id, format: 'csv' | 'xlsx' | 'pdf' | 'json'): Promise<void>;
 
   /** Works on both draft and finalized sessions. Post-finalization edits are expected, not exceptional. */
   updateAttendance(request: UpdateAttendanceRequest): Promise<AttendanceSession>;

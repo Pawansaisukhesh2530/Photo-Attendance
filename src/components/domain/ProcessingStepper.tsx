@@ -19,20 +19,20 @@ export interface ProcessingStepperProps {
   detail: string | null;
   /** Set when the pipeline aborted, so the active step renders as failed. */
   failed?: boolean;
+  captureMode?: 'STANDARD' | 'PANORAMA';
 }
 
 /** Display order and copy, taken from the Stitch AI Processing stepper. */
-const STEPS: { stage: ProcessingStage; label: string }[] = [
+const BASE_STEPS: { stage: ProcessingStage; label: string }[] = [
   { stage: 'CAPTURED', label: 'Image captured' },
   { stage: 'UPLOADING', label: 'Uploading image' },
+  { stage: 'STITCHING_PANORAMA', label: 'Building panorama' },
   { stage: 'DETECTING_FACES', label: 'Detecting faces' },
   { stage: 'IDENTIFYING_STUDENTS', label: 'Identifying students' },
   { stage: 'MATCHING_ROSTER', label: 'Comparing with class roster' },
   { stage: 'GENERATING_RECORD', label: 'Generating attendance' },
   { stage: 'PREPARING_REVIEW', label: 'Preparing review results' },
 ];
-
-const ORDER: ProcessingStage[] = [...STEPS.map((s) => s.stage), 'DONE'];
 
 /** Spinning indicator for the in-progress step. */
 function Spinner({ color }: { color: string }) {
@@ -71,8 +71,14 @@ export function ProcessingStepper({
   progress,
   detail,
   failed = false,
+  captureMode = 'STANDARD',
 }: ProcessingStepperProps) {
-  const activeIndex = ORDER.indexOf(stage);
+  const isPanorama = captureMode === 'PANORAMA' || stage === 'STITCHING_PANORAMA';
+  const steps = BASE_STEPS.filter(
+    (step) => step.stage !== 'STITCHING_PANORAMA' || isPanorama,
+  );
+  const order: ProcessingStage[] = [...steps.map((s) => s.stage), 'DONE'];
+  const activeIndex = order.indexOf(stage);
 
   return (
     <View style={styles.container}>
@@ -82,13 +88,13 @@ export function ProcessingStepper({
         style={[
           styles.railFill,
           {
-            height: `${Math.max(0, Math.min(1, (activeIndex + 0.5) / STEPS.length)) * 100}%`,
+            height: `${Math.max(0, Math.min(1, (activeIndex + 0.5) / steps.length)) * 100}%`,
             backgroundColor: failed ? palette.error : palette.primary,
           },
         ]}
       />
 
-      {STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const isComplete = activeIndex > index || stage === 'DONE';
         const isActive = activeIndex === index && stage !== 'DONE';
         const isFailedStep = isActive && failed;

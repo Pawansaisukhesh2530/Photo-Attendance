@@ -5,7 +5,7 @@ import { isApiError } from '@/api/client';
 import { Card } from '@/components/primitives/Card';
 import { Icon, type IconName } from '@/components/primitives/Icon';
 import { ProgressBar } from '@/components/primitives/ProgressBar';
-import { SkeletonCard, SkeletonListItem } from '@/components/primitives/Skeleton';
+import { SkeletonCard } from '@/components/primitives/Skeleton';
 import { EmptyState, ErrorState } from '@/components/primitives/StateViews';
 import { Text } from '@/components/primitives/Text';
 import { Screen } from '@/components/layout/Screen';
@@ -373,7 +373,7 @@ export function StudentProfileView({
         {/* Face enrolment — status display only, no biometric processing */}
         <View style={styles.block}>
           <SectionHeader title="Recognition" divider />
-          <FaceEnrolmentCard enrolled={student.faceEnrolled} studentName={student.name} />
+        <FaceEnrolmentCard enrolled={student.faceEnrolled} studentName={student.name} studentId={student.id} />
         </View>
       </Screen>
     </>

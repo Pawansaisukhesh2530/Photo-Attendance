@@ -18,7 +18,7 @@ import { palette } from '@/theme';
  */
 export default function AttendanceLayout() {
   return (
-    <AuthGuard requireRole="FACULTY">
+    <AuthGuard>
       <Stack
         screenOptions={{
           headerShown: false,

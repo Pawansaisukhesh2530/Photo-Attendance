@@ -10,7 +10,6 @@ import {
   ClassCodeTag,
   FilterChips,
   Input,
-  MockPersistenceNote,
   Screen,
   SectionHeader,
   Text,
@@ -147,10 +146,6 @@ export default function AdminClassFormScreen() {
         : {})}
     >
       <Screen scrollable respectBottomInset={!isExpanded} contentContainerStyle={styles.content}>
-        <View style={styles.block}>
-          <MockPersistenceNote subject="the class catalogue" />
-        </View>
-
         {banner ? (
           <View style={styles.block}>
             <Card style={styles.banner}>
@@ -213,22 +208,27 @@ export default function AdminClassFormScreen() {
         <View style={styles.block}>
           <SectionHeader title="Placement" divider />
           <Card>
-            <View style={styles.field}>
-              <Text variant="labelMd" color={palette.onSurfaceVariant}>
-                DEPARTMENT
-              </Text>
-              <FilterChips
-                options={departmentOptions}
-                selected={department}
-                onSelect={setDepartment}
-                contentInset={0}
-              />
-              {fieldErrors.department ? (
-                <Text variant="labelMd" color={palette.error}>
-                  {fieldErrors.department}
+            <Input
+              label="Department"
+              value={department}
+              onChangeText={setDepartment}
+              placeholder="Computer Science"
+              autoCapitalize="words"
+              {...(fieldErrors.department ? { error: fieldErrors.department } : {})}
+            />
+            {departmentOptions.length > 0 ? (
+              <View style={styles.field}>
+                <Text variant="labelMd" color={palette.onSurfaceVariant}>
+                  SAVED DEPARTMENTS
                 </Text>
-              ) : null}
-            </View>
+                <FilterChips
+                  options={departmentOptions}
+                  selected={department}
+                  onSelect={setDepartment}
+                  contentInset={0}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurfaceVariant}>

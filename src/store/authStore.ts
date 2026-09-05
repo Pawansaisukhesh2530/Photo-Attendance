@@ -48,6 +48,7 @@ interface AuthState {
   login: (request: LoginRequest) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
+  refreshSession: () => Promise<string | null>;
 }
 
 async function persist(session: AuthSession, remember: boolean): Promise<void> {
@@ -93,12 +94,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const tokens = JSON.parse(rawTokens) as StoredTokens;
       const user = JSON.parse(rawUser) as User;
 
-      // An expired stored token is treated as no session at all. Refresh-on-launch is
-      // deferred until the real auth backend exists, since its refresh semantics will
-      // decide the approach.
       if (new Date(tokens.expiresAt).getTime() <= Date.now()) {
-        await clearPersisted();
-        set({ status: 'unauthenticated', user: null, tokens: null });
+        set({ user, tokens });
+        const renewed=await get().refreshSession();
+        if(!renewed){await clearPersisted();set({status:'unauthenticated',user:null,tokens:null})}
         return;
       }
 
@@ -159,6 +158,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await authService.logout().catch(() => {});
   },
 
+  async refreshSession() {
+    const current=get().tokens;
+    if(!current?.refreshToken)return null;
+    try{
+      const session=await authService.refresh(current.refreshToken);
+      await persist(session,true);
+      set({status:'authenticated',user:session.user,tokens:{accessToken:session.accessToken,refreshToken:session.refreshToken,expiresAt:session.expiresAt}});
+      return session.accessToken;
+    }catch{return null}
+  },
+
   clearError() {
     set({ error: null, fieldErrors: null });
   },
@@ -174,6 +184,7 @@ export function wireAuthToApiClient(): void {
     unauthorizedHandler: () => {
       void useAuthStore.getState().logout();
     },
+    tokenRefresher: () => useAuthStore.getState().refreshSession(),
   });
 }
 

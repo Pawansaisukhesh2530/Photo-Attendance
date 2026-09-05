@@ -77,6 +77,8 @@ const ICONS = {
   finalize: 'task-alt',
   edit: 'edit',
   camera: 'photo-camera',
+  panorama: 'panorama-wide-angle',
+  stop: 'stop',
   retake: 'refresh',
   gallery: 'photo-library',
   flash: 'flash-on',

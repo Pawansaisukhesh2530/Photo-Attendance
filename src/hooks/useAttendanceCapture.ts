@@ -3,15 +3,24 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { attendanceService } from '@/services';
 import { queryKeys } from '@/store/queryClient';
-import type { AttendanceSession, ProcessingProgress } from '@/types';
-import { prepareClassroomPhoto } from '@/utils/image';
+import type { AttendanceCaptureMode, AttendanceSession, ProcessingProgress } from '@/types';
+
+export function usePreparePanorama() {
+  return useMutation({
+    mutationFn: (sweepUri: string) =>
+      attendanceService.preparePanorama({
+        sweepUri,
+        capturedAt: new Date().toISOString(),
+      }),
+  });
+}
 
 /**
  * Submits a captured photograph and opens a session.
  *
- * Compression happens here rather than on the camera screen so the screen stays concerned
- * only with capture, and so the resize step sits on the same side of the boundary as the
- * upload it exists to serve.
+ * Media is uploaded at the resolution produced by the device. Classroom faces can occupy
+ * very few pixels, especially in a panorama, so client-side resizing or JPEG recompression
+ * would directly reduce recognition quality. Preview derivatives belong on the backend.
  */
 export function useCaptureAttendance() {
   const queryClient = useQueryClient();
@@ -20,19 +29,17 @@ export function useCaptureAttendance() {
     mutationFn: async (variables: {
       /** The selected classes. One entry is ordinary single-class attendance. */
       classIds: string[];
-      photoUri: string;
-      width: number;
-      height: number;
+      captureMode: AttendanceCaptureMode;
+      photos: { uri: string; width: number; height: number }[];
+      panoramaDraftId?: string;
     }): Promise<AttendanceSession> => {
-      const prepared = await prepareClassroomPhoto(
-        variables.photoUri,
-        variables.width,
-        variables.height,
-      );
-
       return attendanceService.captureAttendance({
         classIds: variables.classIds,
-        photoUri: prepared.uri,
+        captureMode: variables.captureMode,
+        // Keep original device files. Server-side previews may be resized separately,
+        // but recognition must receive the full-resolution classroom evidence.
+        photoUris: variables.photos.map((photo) => photo.uri),
+        panoramaDraftId: variables.panoramaDraftId,
         capturedAt: new Date().toISOString(),
       });
     },
@@ -64,9 +71,7 @@ const INITIAL: ProcessingProgress = {
 /**
  * Subscribes to processing progress for a session.
  *
- * Wraps `attendanceService.observeProcessing`, which the mock drives from a timer and the
- * real implementation will drive by polling. The screen sees only `ProcessingProgress`
- * either way, so swapping them changes nothing here.
+ * Wraps `attendanceService.observeProcessing`, which polls the backend job progress endpoint.
  *
  * On completion the session is invalidated so the results screen refetches the finished
  * record rather than reading a stale PROCESSING copy from cache.
@@ -85,9 +90,11 @@ export function useProcessingProgress(sessionId: string | undefined): Processing
   useEffect(() => {
     if (!sessionId) return;
 
-    setProgress(INITIAL);
-    setError(null);
-    setIsComplete(false);
+    const resetTimer = setTimeout(() => {
+      setProgress(INITIAL);
+      setError(null);
+      setIsComplete(false);
+    }, 0);
 
     const unsubscribe = attendanceService.observeProcessing(
       sessionId,
@@ -108,6 +115,7 @@ export function useProcessingProgress(sessionId: string | undefined): Processing
     // Always tear the subscription down. Without this, navigating away mid-capture leaves a
     // timer or poll running and setting state on an unmounted screen.
     return () => {
+      clearTimeout(resetTimer);
       unsubscribe();
       unsubscribeRef.current = null;
     };

@@ -11,9 +11,12 @@ import type { ApiError, ApiErrorKind } from '@/types';
 
 type TokenProvider = () => string | null;
 type UnauthorizedHandler = () => void;
+type TokenRefresher = () => Promise<string | null>;
 
 let getAccessToken: TokenProvider = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let refreshAccessToken: TokenRefresher = async () => null;
+let refreshInFlight: Promise<string | null> | null = null;
 
 /**
  * Wired up once by the auth store at startup. Keeps the client free of any import
@@ -22,9 +25,11 @@ let onUnauthorized: UnauthorizedHandler = () => {};
 export function configureClient(options: {
   tokenProvider: TokenProvider;
   unauthorizedHandler: UnauthorizedHandler;
+  tokenRefresher: TokenRefresher;
 }): void {
   getAccessToken = options.tokenProvider;
   onUnauthorized = options.unauthorizedHandler;
+  refreshAccessToken = options.tokenRefresher;
 }
 
 export function isApiError(value: unknown): value is ApiError {
@@ -61,6 +66,54 @@ function errorKindForStatus(status: number): ApiErrorKind {
   return 'UNKNOWN';
 }
 
+function toClientFieldName(value: string): string {
+  return value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+/** Convert FastAPI problem details and Pydantic validation arrays into safe UI strings. */
+function parseErrorPayload(payload: unknown): {
+  message?: string;
+  fieldErrors?: Record<string, string>;
+} {
+  if (!payload || typeof payload !== 'object') return {};
+
+  const value = payload as Record<string, unknown>;
+  const explicitMessage = typeof value.message === 'string' ? value.message : undefined;
+  const detailMessage = typeof value.detail === 'string' ? value.detail : undefined;
+  const fieldErrors: Record<string, string> = {};
+
+  if (value.fieldErrors && typeof value.fieldErrors === 'object') {
+    for (const [field, error] of Object.entries(value.fieldErrors as Record<string, unknown>)) {
+      if (typeof error === 'string') fieldErrors[toClientFieldName(field)] = error;
+    }
+  }
+
+  let firstValidationMessage: string | undefined;
+  if (Array.isArray(value.detail)) {
+    for (const item of value.detail) {
+      if (!item || typeof item !== 'object') continue;
+      const issue = item as Record<string, unknown>;
+      const message = typeof issue.msg === 'string' ? issue.msg : undefined;
+      if (!message) continue;
+      firstValidationMessage ??= message;
+
+      if (Array.isArray(issue.loc)) {
+        const field = [...issue.loc].reverse().find((part) => typeof part === 'string');
+        if (typeof field === 'string' && field !== 'body') {
+          fieldErrors[toClientFieldName(field)] = message;
+        }
+      }
+    }
+  }
+
+  return {
+    ...(explicitMessage || detailMessage || firstValidationMessage
+      ? { message: explicitMessage ?? detailMessage ?? firstValidationMessage }
+      : {}),
+    ...(Object.keys(fieldErrors).length > 0 ? { fieldErrors } : {}),
+  };
+}
+
 /** Copy shown to the user. Deliberately plain, no jargon, no status codes. */
 function messageForKind(kind: ApiErrorKind): string {
   switch (kind) {
@@ -95,6 +148,7 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   timeoutMs?: number;
   signal?: AbortSignal;
+  retried?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -141,17 +195,19 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
     if (!response.ok) {
       const kind = errorKindForStatus(response.status);
-      if (kind === 'UNAUTHORIZED') onUnauthorized();
+      if (kind === 'UNAUTHORIZED' && !options.retried) {
+        refreshInFlight ??= refreshAccessToken().finally(() => { refreshInFlight = null; });
+        const renewed = await refreshInFlight;
+        if (renewed) return request<T>(path, { ...options, retried: true });
+        onUnauthorized();
+      }
 
       let fieldErrors: Record<string, string> | undefined;
       let serverMessage: string | undefined;
       try {
-        const payload = (await response.json()) as {
-          message?: string;
-          fieldErrors?: Record<string, string>;
-        };
-        serverMessage = payload.message;
-        fieldErrors = payload.fieldErrors;
+        const parsed = parseErrorPayload(await response.json());
+        serverMessage = parsed.message;
+        fieldErrors = parsed.fieldErrors;
       } catch {
         // Non-JSON error body; fall back to our generic copy.
       }
@@ -186,9 +242,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
  * offer "retry upload" rather than "retake photo" — losing a classroom photo because
  * campus wifi dropped would be a genuinely bad experience.
  */
-export async function uploadPhoto<T>(
+export async function uploadAttendanceMedia<T>(
   path: string,
-  photoUri: string,
+  mediaUri: string,
+  media: { fieldName: 'photo' | 'sweep'; name: string; type: 'image/jpeg' | 'video/mp4' },
   fields: Record<string, string> = {},
   onProgressUnsupported?: never,
 ): Promise<T> {
@@ -197,10 +254,10 @@ export async function uploadPhoto<T>(
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
   // React Native's FormData accepts this shape for file parts.
-  form.append('photo', {
-    uri: photoUri,
-    name: 'classroom.jpg',
-    type: 'image/jpeg',
+  form.append(media.fieldName, {
+    uri: mediaUri,
+    name: media.name,
+    type: media.type,
   } as unknown as Blob);
 
   const controller = new AbortController();
@@ -233,5 +290,27 @@ export async function uploadPhoto<T>(
   }
 }
 
-/** Exposed so mock services can produce failures indistinguishable from real ones. */
+export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='files'):Promise<T> {
+  const form=new FormData();
+  fileUris.forEach((uri,index)=>form.append(fieldName,{uri,name:`image-${index+1}.jpg`,type:'image/jpeg'} as unknown as Blob));
+  const response=await fetch(buildUrl(path),{method:'POST',body:form,headers:{Accept:'application/json',...(getAccessToken()?{Authorization:`Bearer ${getAccessToken()}`}:{})}});
+  if(!response.ok){let detail='Upload failed.';try{detail=parseErrorPayload(await response.json()).message??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
+  return response.json() as Promise<T>;
+}
+
+export async function downloadFile(path: string): Promise<void> {
+  const token = getAccessToken();
+  const response = await fetch(buildUrl(path), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw makeError(errorKindForStatus(response.status), messageForKind(errorKindForStatus(response.status)), { status: response.status });
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const disposition = response.headers.get('content-disposition') ?? '';
+  link.download = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'attendance-export';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Type guard used by screens to render structured API failures. */
 export const createApiError = makeError;

@@ -1,0 +1,8 @@
+{
+  "images": [
+    {"file": "classroom-25.jpg", "visible_faces": 25},
+    {"file": "classroom-50.jpg", "visible_faces": 50},
+    {"file": "classroom-75.jpg", "visible_faces": 75},
+    {"file": "classroom-100.jpg", "visible_faces": 100}
+  ]
+}
