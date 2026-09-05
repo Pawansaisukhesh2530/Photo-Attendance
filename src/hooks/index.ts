@@ -51,5 +51,6 @@ export {
   useInfiniteStudents,
   useStudent,
   useStudents,
+  useCreateStudent,
   type InfiniteStudents,
 } from './useStudents';

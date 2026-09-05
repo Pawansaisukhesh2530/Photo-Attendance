@@ -5,7 +5,7 @@ import { Card } from '@/components/primitives/Card';
 import { SkeletonListItem } from '@/components/primitives/Skeleton';
 import { EmptyState, ErrorState } from '@/components/primitives/StateViews';
 import { Text } from '@/components/primitives/Text';
-import { palette, radius, spacing, useResponsive } from '@/theme';
+import { palette, spacing, useResponsive } from '@/theme';
 import type { IconName } from '@/components/primitives/Icon';
 
 import { DataTableHeader, type DataColumn } from './DataTable';

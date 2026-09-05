@@ -10,7 +10,6 @@ import Animated, {
 import { palette, radius, spacing, timing, touch, useReducedMotion } from '@/theme';
 
 import { AnimatedPressable } from './Pressable';
-import { Text } from './Text';
 
 export interface FilterChipOption<T extends string> {
   value: T;

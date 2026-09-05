@@ -11,9 +11,12 @@ import type { ApiError, ApiErrorKind } from '@/types';
 
 type TokenProvider = () => string | null;
 type UnauthorizedHandler = () => void;
+type TokenRefresher = () => Promise<string | null>;
 
 let getAccessToken: TokenProvider = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let refreshAccessToken: TokenRefresher = async () => null;
+let refreshInFlight: Promise<string | null> | null = null;
 
 /**
  * Wired up once by the auth store at startup. Keeps the client free of any import
@@ -22,9 +25,11 @@ let onUnauthorized: UnauthorizedHandler = () => {};
 export function configureClient(options: {
   tokenProvider: TokenProvider;
   unauthorizedHandler: UnauthorizedHandler;
+  tokenRefresher: TokenRefresher;
 }): void {
   getAccessToken = options.tokenProvider;
   onUnauthorized = options.unauthorizedHandler;
+  refreshAccessToken = options.tokenRefresher;
 }
 
 export function isApiError(value: unknown): value is ApiError {
@@ -95,6 +100,7 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   timeoutMs?: number;
   signal?: AbortSignal;
+  retried?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -141,16 +147,22 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
     if (!response.ok) {
       const kind = errorKindForStatus(response.status);
-      if (kind === 'UNAUTHORIZED') onUnauthorized();
+      if (kind === 'UNAUTHORIZED' && !options.retried) {
+        refreshInFlight ??= refreshAccessToken().finally(() => { refreshInFlight = null; });
+        const renewed = await refreshInFlight;
+        if (renewed) return request<T>(path, { ...options, retried: true });
+        onUnauthorized();
+      }
 
       let fieldErrors: Record<string, string> | undefined;
       let serverMessage: string | undefined;
       try {
         const payload = (await response.json()) as {
           message?: string;
+          detail?: string;
           fieldErrors?: Record<string, string>;
         };
-        serverMessage = payload.message;
+        serverMessage = payload.message ?? payload.detail;
         fieldErrors = payload.fieldErrors;
       } catch {
         // Non-JSON error body; fall back to our generic copy.
@@ -233,5 +245,27 @@ export async function uploadPhoto<T>(
   }
 }
 
-/** Exposed so mock services can produce failures indistinguishable from real ones. */
+export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='files'):Promise<T> {
+  const form=new FormData();
+  fileUris.forEach((uri,index)=>form.append(fieldName,{uri,name:`image-${index+1}.jpg`,type:'image/jpeg'} as unknown as Blob));
+  const response=await fetch(buildUrl(path),{method:'POST',body:form,headers:{Accept:'application/json',...(getAccessToken()?{Authorization:`Bearer ${getAccessToken()}`}:{})}});
+  if(!response.ok){let detail='Upload failed.';try{const p=await response.json() as {detail?:string};detail=p.detail??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
+  return response.json() as Promise<T>;
+}
+
+export async function downloadFile(path: string): Promise<void> {
+  const token = getAccessToken();
+  const response = await fetch(buildUrl(path), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw makeError(errorKindForStatus(response.status), messageForKind(errorKindForStatus(response.status)), { status: response.status });
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const disposition = response.headers.get('content-disposition') ?? '';
+  link.download = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'attendance-export';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Type guard used by screens to render structured API failures. */
 export const createApiError = makeError;

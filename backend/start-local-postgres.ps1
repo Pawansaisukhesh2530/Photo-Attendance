@@ -11,7 +11,7 @@ if (-not (Test-Path $Python)) { throw "Python environment not found at $Python. 
 if (-not $Password) { $Password=Read-Host "PostgreSQL password" -MaskInput }
 $escapedUser=[Uri]::EscapeDataString($User);$escapedPassword=[Uri]::EscapeDataString($Password)
 $env:EDUTRACE_ENV="development"
-$env:EDUTRACE_TESTER_ENABLED="true"
+$env:EDUTRACE_CORS_ORIGINS="http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006,http://127.0.0.1:19006"
 $env:EDUTRACE_DATABASE_URL="postgresql+psycopg://${escapedUser}:${escapedPassword}@127.0.0.1:5432/$Database"
 $env:EDUTRACE_PGVECTOR_ENABLED="false"
 $env:EDUTRACE_STORAGE_BACKEND="local"
@@ -24,7 +24,7 @@ $env:EDUTRACE_MODEL_VERSION="opencv-yunet-sface-local-v3"
 $env:EDUTRACE_MATCH_THRESHOLD="0.50"
 & $Python -m app.ensure_postgres --user $User --password $Password --database $Database
 & $Python -m alembic upgrade head
-& $Python -m app.seed --email admin@example.edu --password LocalTest123! --demo
+& $Python -m app.seed --email admin@example.edu --password LocalTest123!
 $worker=Start-Process -FilePath $Python -ArgumentList "-m","app.local_worker" -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
 try { & $Python -m uvicorn app.main:app --host 127.0.0.1 --port $Port }
 finally { Stop-Process -Id $worker.Id -ErrorAction SilentlyContinue }

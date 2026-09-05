@@ -17,20 +17,11 @@ import {
   SelectionSheet,
   SettingsRow,
   Text,
-  useToast,
   type SelectionOption,
 } from '@/components';
-import { USE_MOCK_API } from '@/constants/config';
-import { clearAllFailures, clearFailure, forceFailure } from '@/mocks/latency';
-import {
-  getProcessingScenario,
-  setProcessingScenario,
-  type ProcessingScenario,
-} from '@/mocks/mockAiProcessing';
 import { useAuthStore } from '@/store/authStore';
 import { usePreferencesStore, type MotionPreference } from '@/store/preferences';
 import { palette, radius, spacing } from '@/theme';
-import type { ApiErrorKind } from '@/types';
 
 /* ------------------------------------------------------------------ *
  * Motion preference presentation
@@ -49,299 +40,6 @@ const MOTION_DESCRIPTION: Record<MotionPreference, string> = {
 };
 
 const MOTION_ORDER: readonly MotionPreference[] = ['SYSTEM', 'REDUCED', 'STANDARD'];
-
-/* ------------------------------------------------------------------ *
- * Development-only mock controls
- *
- * Everything in this block is gated on `__DEV__` at the call site. Metro substitutes `false` for
- * `__DEV__` in a production bundle, so the branch is dead code there and the panel cannot render.
- * The gate is deliberately NOT the user's role: FACULTY is not a trust boundary, and
- * `USE_MOCK_API` is a public `EXPO_PUBLIC_*` value that anyone holding the binary can read.
- * ------------------------------------------------------------------ */
-
-/**
- * Every mock operation that consults the forced-failure switchboard.
- *
- * Transcribed from the `mockRequest` / `assertNoForcedFailure` call sites in `mocks/services.ts`.
- * Only these are listed: the mutations delay without checking the switchboard, so offering them
- * would be a control that silently does nothing.
- */
-const FAILABLE_OPERATIONS: readonly string[] = [
-  'attendance.captureAttendance',
-  'attendance.getAttendanceHistory',
-  'attendance.getAttendanceSession',
-  'attendance.getPagedAttendanceHistory',
-  'attendance.getTwinReviews',
-  'audit.getAuditEntries',
-  'audit.getPagedAuditEntries',
-  'auth.getCurrentUser',
-  'classes.getClass',
-  'classes.getClasses',
-  'classes.getPagedClasses',
-  'classes.getTodayClasses',
-  'faculty.getFacultyList',
-  'faculty.getFacultyMember',
-  'reports.getReport',
-  'reports.getStudentStats',
-  'settings.getInstitutionSettings',
-  'students.getStudent',
-  'students.getStudents',
-];
-
-/** `ApiErrorKind`, in the order `types/common.ts` declares it. */
-const FAILURE_KINDS: readonly ApiErrorKind[] = [
-  'NETWORK',
-  'TIMEOUT',
-  'OFFLINE',
-  'UNAUTHORIZED',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'CONFLICT',
-  'VALIDATION',
-  'SERVER',
-  'UPLOAD_INTERRUPTED',
-  'UNKNOWN',
-];
-
-const SCENARIO_LABEL: Record<ProcessingScenario, string> = {
-  SUCCESS: 'Success',
-  NO_FACES_DETECTED: 'No faces detected',
-  NO_RECOGNIZABLE_STUDENTS: 'No recognizable students',
-  POOR_IMAGE_QUALITY: 'Poor image quality',
-  PROCESSING_FAILURE: 'Processing failure',
-  TIMEOUT: 'Timeout',
-};
-
-const SCENARIO_ORDER: readonly ProcessingScenario[] = [
-  'SUCCESS',
-  'NO_FACES_DETECTED',
-  'NO_RECOGNIZABLE_STUDENTS',
-  'POOR_IMAGE_QUALITY',
-  'PROCESSING_FAILURE',
-  'TIMEOUT',
-];
-
-/**
- * Display mirror of the forced-failure map.
- *
- * `latency.ts` keeps the authoritative map private and exposes no getter, and it is not being
- * changed to add one — the debug panel is not a reason to widen mock infrastructure. So this
- * records what the panel asked for, purely so the list survives navigating away and back. Module
- * scope rather than component state for that same reason. `clearAllFailures()` remains
- * authoritative; this set is cleared alongside it.
- */
-const forcedFailureMirror = new Map<string, ApiErrorKind>();
-
-type DebugSheet = 'none' | 'scenario' | 'operation' | 'kind';
-
-function DebugPanel() {
-  const toast = useToast();
-
-  const [sheet, setSheet] = useState<DebugSheet>('none');
-  const [pendingOperation, setPendingOperation] = useState<string | null>(null);
-  const [scenario, setScenario] = useState<ProcessingScenario>(() => getProcessingScenario());
-  // Snapshot of the mirror, so state changes drive a re-render.
-  const [active, setActive] = useState<[string, ApiErrorKind][]>(() => [
-    ...forcedFailureMirror.entries(),
-  ]);
-
-  const syncActive = (): void => setActive([...forcedFailureMirror.entries()]);
-
-  const chooseScenario = (value: string): void => {
-    const next = SCENARIO_ORDER.find((candidate) => candidate === value);
-    if (!next) return;
-    setProcessingScenario(next);
-    setScenario(next);
-    setSheet('none');
-    toast.show({
-      message: `Processing scenario: ${SCENARIO_LABEL[next]}`,
-      tone: next === 'SUCCESS' ? 'info' : 'error',
-    });
-  };
-
-  const chooseKind = (value: string): void => {
-    const kind = FAILURE_KINDS.find((candidate) => candidate === value);
-    const operation = pendingOperation;
-    if (!kind || operation === null) return;
-
-    forceFailure(operation, kind);
-    forcedFailureMirror.set(operation, kind);
-    syncActive();
-    setPendingOperation(null);
-    setSheet('none');
-    toast.show({ message: `${operation} will fail with ${kind}`, tone: 'error' });
-  };
-
-  const clearOne = (operation: string): void => {
-    clearFailure(operation);
-    forcedFailureMirror.delete(operation);
-    syncActive();
-    toast.show({ message: `Cleared ${operation}`, tone: 'info' });
-  };
-
-  const clearEverything = (): void => {
-    clearAllFailures();
-    forcedFailureMirror.clear();
-    syncActive();
-    // The scripted recognition outcome is a separate switch in a separate module, so "clear
-    // everything" has to reset it too or a forced processing failure would survive the reset.
-    setProcessingScenario('SUCCESS');
-    setScenario('SUCCESS');
-    toast.show({ message: 'All forced failures cleared', tone: 'info' });
-  };
-
-  const scenarioOptions: SelectionOption[] = SCENARIO_ORDER.map((value) => ({
-    id: value,
-    label: SCENARIO_LABEL[value],
-    selected: value === scenario,
-    ...(value === 'SUCCESS' ? { description: 'Normal path — no failure injected' } : {}),
-  }));
-
-  const operationOptions: SelectionOption[] = FAILABLE_OPERATIONS.map((operation) => ({
-    id: operation,
-    label: operation,
-    ...(forcedFailureMirror.has(operation)
-      ? { description: `Currently forced: ${forcedFailureMirror.get(operation) ?? ''}` }
-      : {}),
-    selected: forcedFailureMirror.has(operation),
-  }));
-
-  const kindOptions: SelectionOption[] = FAILURE_KINDS.map((kind) => ({
-    id: kind,
-    label: kind,
-  }));
-
-  return (
-    <View style={styles.block}>
-      <SectionHeader title="Developer tools" divider />
-
-      <Card accentColor={palette.error}>
-        <View style={styles.debugHeader}>
-          <Icon name="warning" size={20} color={palette.error} />
-          <View style={styles.flex}>
-            <View style={styles.debugTitleRow}>
-              <Text variant="titleLg" color={palette.error}>
-                Development build only
-              </Text>
-              <Badge
-                label="DEBUG"
-                icon="warning"
-                background={palette.errorContainer}
-                foreground={palette.onErrorContainer}
-                border={palette.error}
-              />
-            </View>
-            <Text variant="labelMd" color={palette.onSurfaceVariant}>
-              These controls make the mock data layer fail on purpose, so error states can be seen
-              without waiting for a real outage. They are compiled out of release builds and are not
-              part of the product. Nothing here touches attendance records.
-            </Text>
-          </View>
-        </View>
-
-        {!USE_MOCK_API ? (
-          <View style={styles.debugNote}>
-            <Icon name="info" size={16} color={palette.onTertiaryFixedVariant} />
-            <Text variant="labelMd" color={palette.onTertiaryFixedVariant} style={styles.flex}>
-              The app is pointed at a real API right now, so these switches have nothing to act on.
-              They only affect the mock service layer.
-            </Text>
-          </View>
-        ) : null}
-      </Card>
-
-      <View style={styles.cardGap} />
-
-      <Card padded={false}>
-        <SettingsRow
-          icon="processing"
-          label="Recognition outcome"
-          description="Which scripted result the mock pipeline produces on the next capture."
-          value={SCENARIO_LABEL[scenario]}
-          onPress={() => setSheet('scenario')}
-          accessibilityLabel={`Recognition outcome, currently ${SCENARIO_LABEL[scenario]}`}
-          accessibilityHint="Opens the list of scripted outcomes"
-          divider
-        />
-        <SettingsRow
-          icon="error"
-          label="Force an operation to fail"
-          description="Pick a mock operation and the error it should raise."
-          onPress={() => setSheet('operation')}
-          accessibilityHint="Opens the list of mock operations"
-        />
-      </Card>
-
-      {active.length > 0 ? (
-        <>
-          <View style={styles.cardGap} />
-          <Card padded={false}>
-            {active.map(([operation, kind], index) => (
-              <SettingsRow
-                key={operation}
-                label={operation}
-                description={`Fails with ${kind}`}
-                divider={index < active.length - 1}
-                control={
-                  <Button
-                    label="Clear"
-                    variant="secondary"
-                    size="sm"
-                    onPress={() => clearOne(operation)}
-                  />
-                }
-              />
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      <Button
-        label="Clear all forced failures"
-        variant="secondary"
-        icon="retry"
-        fullWidth
-        onPress={clearEverything}
-        style={styles.debugReset}
-      />
-
-      <SelectionSheet
-        visible={sheet === 'scenario'}
-        title="Recognition outcome"
-        subtitle="Applies to the next capture. Mock only."
-        options={scenarioOptions}
-        onSelect={chooseScenario}
-        onClose={() => setSheet('none')}
-      />
-
-      <SelectionSheet
-        visible={sheet === 'operation'}
-        title="Force a failure"
-        subtitle="Choose the mock operation to break."
-        options={operationOptions}
-        searchable
-        searchPlaceholder="Search operations"
-        onSelect={(id) => {
-          setPendingOperation(id);
-          setSheet('kind');
-        }}
-        onClose={() => setSheet('none')}
-      />
-
-      <SelectionSheet
-        visible={sheet === 'kind'}
-        title="Error kind"
-        subtitle={pendingOperation ?? undefined}
-        options={kindOptions}
-        onSelect={chooseKind}
-        onClose={() => {
-          setPendingOperation(null);
-          setSheet('none');
-        }}
-      />
-    </View>
-  );
-}
 
 /* ------------------------------------------------------------------ *
  * Settings
@@ -520,12 +218,8 @@ export default function SettingsScreen() {
             <SettingsRow label="Version" value={appVersion} divider />
             <SettingsRow
               label="Data"
-              description={
-                USE_MOCK_API
-                  ? 'Mock services. Attendance you record is held in memory for this session and is gone when the app restarts.'
-                  : 'Connected to the attendance API.'
-              }
-              value={USE_MOCK_API ? 'Mock data' : 'Live API'}
+              description="All data is stored by the attendance backend."
+              value="Live API"
               divider
             />
             <SettingsRow
@@ -535,9 +229,6 @@ export default function SettingsScreen() {
             />
           </Card>
         </View>
-
-        {/* Development-only. Compiled out of release builds. */}
-        {__DEV__ ? <DebugPanel /> : null}
 
         <Button
           label="Sign out"

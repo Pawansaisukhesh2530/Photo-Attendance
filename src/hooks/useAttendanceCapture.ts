@@ -20,19 +20,15 @@ export function useCaptureAttendance() {
     mutationFn: async (variables: {
       /** The selected classes. One entry is ordinary single-class attendance. */
       classIds: string[];
-      photoUri: string;
-      width: number;
-      height: number;
+      photos: { uri: string; width: number; height: number }[];
     }): Promise<AttendanceSession> => {
-      const prepared = await prepareClassroomPhoto(
-        variables.photoUri,
-        variables.width,
-        variables.height,
-      );
+      const prepared = await Promise.all(variables.photos.map((photo) =>
+        prepareClassroomPhoto(photo.uri, photo.width, photo.height),
+      ));
 
       return attendanceService.captureAttendance({
         classIds: variables.classIds,
-        photoUri: prepared.uri,
+        photoUris: prepared.map((photo) => photo.uri),
         capturedAt: new Date().toISOString(),
       });
     },
@@ -64,9 +60,7 @@ const INITIAL: ProcessingProgress = {
 /**
  * Subscribes to processing progress for a session.
  *
- * Wraps `attendanceService.observeProcessing`, which the mock drives from a timer and the
- * real implementation will drive by polling. The screen sees only `ProcessingProgress`
- * either way, so swapping them changes nothing here.
+ * Wraps `attendanceService.observeProcessing`, which polls the backend job progress endpoint.
  *
  * On completion the session is invalidated so the results screen refetches the finished
  * record rather than reading a stale PROCESSING copy from cache.
@@ -85,9 +79,11 @@ export function useProcessingProgress(sessionId: string | undefined): Processing
   useEffect(() => {
     if (!sessionId) return;
 
-    setProgress(INITIAL);
-    setError(null);
-    setIsComplete(false);
+    const resetTimer = setTimeout(() => {
+      setProgress(INITIAL);
+      setError(null);
+      setIsComplete(false);
+    }, 0);
 
     const unsubscribe = attendanceService.observeProcessing(
       sessionId,
@@ -108,6 +104,7 @@ export function useProcessingProgress(sessionId: string | undefined): Processing
     // Always tear the subscription down. Without this, navigating away mid-capture leaves a
     // timer or poll running and setting state on an unmounted screen.
     return () => {
+      clearTimeout(resetTimer);
       unsubscribe();
       unsubscribeRef.current = null;
     };

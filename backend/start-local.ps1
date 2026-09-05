@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 if (-not (Test-Path $Python)) { throw "Python environment not found at $Python. See README.md." }
 $env:EDUTRACE_ENV = "development"
-$env:EDUTRACE_TESTER_ENABLED = "true"
+$env:EDUTRACE_CORS_ORIGINS = "http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006,http://127.0.0.1:19006"
 $dataRoot = Join-Path $env:TEMP "edutrace-local"
 New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
 $databaseFile = (Join-Path $dataRoot "edutrace.db").Replace("\", "/")

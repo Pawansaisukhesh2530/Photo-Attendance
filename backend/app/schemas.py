@@ -17,12 +17,23 @@ class Page(BaseModel, Generic[T]):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    identifier: str = Field(min_length=1,max_length=320)
     password: str = Field(min_length=8, max_length=200)
+    remember_me: bool = False
+
+    model_config=ConfigDict(populate_by_name=True,alias_generator=lambda s: ''.join([s.split('_')[0]]+[x.title() for x in s.split('_')[1:]]))
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_email(cls, value):
+        if isinstance(value, dict) and "identifier" not in value and "email" in value:
+            return {**value, "identifier": value["email"]}
+        return value
 
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+    model_config=ConfigDict(populate_by_name=True,alias_generator=lambda s: ''.join([s.split('_')[0]]+[x.title() for x in s.split('_')[1:]]))
 
 
 class TokenPair(BaseModel):
@@ -41,7 +52,7 @@ class UserOut(BaseModel):
 
 class FacultyIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(default="ChangeMe123!",min_length=8)
     employee_id: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=200)
     department: str = Field(min_length=1, max_length=120)
@@ -164,11 +175,12 @@ class AttendanceRecordOut(BaseModel):
 class AmendmentRequest(BaseModel):
     status: Literal["PRESENT", "ABSENT"]
     reason: str | None = Field(default=None, max_length=1000)
-    version: int
+    version: int | None = None
 
 
 class FinalizeRequest(BaseModel):
     acknowledge_unresolved: bool = False
+    model_config=ConfigDict(populate_by_name=True,alias_generator=lambda s: ''.join([s.split('_')[0]]+[x.title() for x in s.split('_')[1:]]))
 
 
 class SettingsPatch(BaseModel):

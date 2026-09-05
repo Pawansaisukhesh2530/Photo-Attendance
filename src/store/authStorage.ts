@@ -20,14 +20,11 @@ import * as SecureStore from 'expo-secure-store';
  *
  * A production web deployment should NOT keep tokens here. The session should be held in a
  * server-managed, `httpOnly`, `Secure`, `SameSite` cookie that JavaScript cannot read, so a
- * script injection cannot exfiltrate credentials. That requires a real auth backend, which
- * does not exist yet.
+ * script injection cannot exfiltrate credentials. The native application uses secure storage; production web deployments should use server cookies.
  *
  * `localStorage` is used for now because the alternative is an Admin web app that cannot sign
  * in at all: `expo-secure-store` ships `export default {}` on web — an empty stub with no
- * implementation — so every call to it throws. Given the app currently authenticates against a
- * mock service and holds no real credentials, this is an acceptable development-time choice and
- * a documented handoff item, not a decision to defend in production.
+ * implementation — so every call to it throws. The beta web build uses localStorage and should run only in a trusted test environment.
  * ============================================================================
  *
  * Deliberately narrow: three methods, string in and string out. The auth store keeps all of its

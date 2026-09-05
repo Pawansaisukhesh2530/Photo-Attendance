@@ -79,9 +79,9 @@ export function AnimatedOverlay({
 
   useEffect(() => {
     if (visible) {
-      setMounted(true);
+      const mountTimer = setTimeout(() => setMounted(true), 0);
       progress.value = withTiming(1, enterConfig);
-      return;
+      return () => clearTimeout(mountTimer);
     }
 
     if (!mounted) return;

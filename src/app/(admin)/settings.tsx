@@ -12,7 +12,6 @@ import {
   ErrorState,
   Icon,
   Input,
-  MockPersistenceNote,
   Screen,
   SectionHeader,
   SkeletonCard,
@@ -134,10 +133,6 @@ export default function AdminSettingsScreen() {
         refreshing={isRefetching}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.block}>
-          <MockPersistenceNote subject="institution settings" />
-        </View>
-
         {/* Attendance policy */}
         <View style={styles.block}>
           <SectionHeader title="Attendance policy" divider />

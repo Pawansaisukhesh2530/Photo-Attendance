@@ -74,10 +74,6 @@ export {
   type FacultyStatusBadgeProps,
 } from './admin/FacultyStatusBadge';
 export {
-  MockPersistenceNote,
-  type MockPersistenceNoteProps,
-} from './admin/MockPersistenceNote';
-export {
   PagedListFooter,
   type PagedListFooterProps,
 } from './admin/PagedListFooter';

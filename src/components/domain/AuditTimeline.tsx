@@ -135,7 +135,12 @@ const AuditRow = memo(function AuditRow({
   entry: AuditEntry;
   last: boolean;
 }) {
-  const meta = ACTION_META[entry.action];
+  const meta = ACTION_META[entry.action] ?? {
+    icon: 'history' as IconName,
+    accent: palette.onSurface,
+    well: palette.surfaceContainerHigh,
+    title: entry.action.split('_').map((word) => word.charAt(0) + word.slice(1).toLowerCase()).join(' '),
+  };
   const hasTransition = entry.previousStatus !== null && entry.newStatus !== null;
   const hasValueChange =
     entry.previousValue !== undefined || entry.newValue !== undefined;

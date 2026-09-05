@@ -19,7 +19,7 @@ import { palette, radius, spacing } from '@/theme';
 import { formatTime } from '@/utils/datetime';
 
 /**
- * Mock AI processing.
+ * Backend AI processing.
  *
  * Shows meaningful staged progress rather than a bare spinner: the captured photo above, the
  * seven-step stepper below, and a determinate percentage. Adapted from the Stitch AI

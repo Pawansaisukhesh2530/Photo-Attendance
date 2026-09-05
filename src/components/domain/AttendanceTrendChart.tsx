@@ -112,7 +112,7 @@ export function AttendanceTrendChart({
 
     const step = (points.length - 1) / (max - 1);
     return Array.from({ length: max }, (_, i) => Math.round(i * step));
-  }, [points.length, isCompact]);
+  }, [points, isCompact]);
 
   /* ---------------------------------------------------------------- *
    * Empty

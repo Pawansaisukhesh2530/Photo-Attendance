@@ -1,6 +1,8 @@
 import {
   useInfiniteQuery,
   useQuery,
+  useMutation,
+  useQueryClient,
   type InfiniteData,
   type UseInfiniteQueryResult,
   type UseQueryResult,
@@ -9,7 +11,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { studentService } from '@/services';
 import { queryKeys } from '@/store/queryClient';
-import type { Paginated, Student, StudentProfile, StudentQuery } from '@/types';
+import type { CreateStudentRequest, Paginated, Student, StudentProfile, StudentQuery } from '@/types';
 
 /**
  * A single page of students.
@@ -59,5 +61,16 @@ export function useStudent(studentId: string | undefined): UseQueryResult<Studen
     queryKey: queryKeys.students.detail(studentId ?? ''),
     queryFn: () => studentService.getStudent(studentId!),
     enabled: Boolean(studentId),
+  });
+}
+
+export function useCreateStudent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateStudentRequest) => studentService.createStudent(payload),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.students.all });
+      void client.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
   });
 }

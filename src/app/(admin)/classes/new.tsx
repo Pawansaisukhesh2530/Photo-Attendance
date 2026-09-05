@@ -10,7 +10,6 @@ import {
   ClassCodeTag,
   FilterChips,
   Input,
-  MockPersistenceNote,
   Screen,
   SectionHeader,
   Text,
@@ -147,10 +146,6 @@ export default function AdminClassFormScreen() {
         : {})}
     >
       <Screen scrollable respectBottomInset={!isExpanded} contentContainerStyle={styles.content}>
-        <View style={styles.block}>
-          <MockPersistenceNote subject="the class catalogue" />
-        </View>
-
         {banner ? (
           <View style={styles.block}>
             <Card style={styles.banner}>

@@ -86,3 +86,9 @@ export interface StudentQuery extends PageRequest {
   /** Filters to students below the institutional attendance threshold. */
   lowAttendanceOnly?: boolean;
 }
+
+export interface CreateStudentRequest {
+  studentId:string; rollNumber:string; name:string; department:string; semester:number; section:string;
+}
+
+export interface FaceImageInfo { id:Id; status:string; reason:string|null; imageUrl:string; revokedAt:string|null }

@@ -32,34 +32,17 @@ pytest
 
 See [`../BACKEND_PLAN.md`](../BACKEND_PLAN.md) for capacity, privacy, model licensing, and release gates.
 
-## Temporary recognition tester
+## Local beta with the real frontend
 
-For a simple local run without Docker, install the project plus `vision` and `test`, place the OpenCV YuNet and SFace ONNX models in `models/`, and run:
-
-```powershell
-.\start-local.ps1
-```
-
-Open `http://127.0.0.1:8000/tester`. The page supports administrator and faculty login, 3–5 face enrolment images, 1–8 classroom images, job polling, annotated detections, faculty corrections, finalization, and CSV, Excel, PDF, or JSON downloads. Local mode uses `data/private` and a separate polling worker. Production continues to use S3-compatible storage and Celery by setting `EDUTRACE_STORAGE_BACKEND=s3` and `EDUTRACE_QUEUE_BACKEND=celery`.
-
-OpenCV publishes `0.363` as an LFW verification reference for SFace. The local classroom tester uses a stricter cosine threshold of `0.50` because crowded-image testing showed unrelated faces reaching roughly `0.45`. Calibrate the production threshold on representative consented classroom images before deployment.
-
-Create the labelled local faculty, student, class, assignment, and enrolment used by the tester with:
+Install the backend with the `vision` and `test` extras, place YuNet and SFace ONNX models under `models/`, then start the PostgreSQL-backed API and worker:
 
 ```powershell
-$env:EDUTRACE_DATABASE_URL = "sqlite:///$($env:TEMP.Replace('\','/'))/edutrace-local/edutrace.db"
-& "$env:TEMP\edutrace-backend-venv\Scripts\python.exe" -m app.seed --demo
+.\start-local-postgres.ps1 -User postgres -Database edutrace -Port 8010
 ```
 
-To run the tester against a local PostgreSQL server that does not have pgvector installed:
+From the repository root, set `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8010/api/v1` in `.env`, run `npm install`, and start the Expo frontend with `npm start -- --web --port 8081`. Sign in as the seeded administrator to create faculty, students, classes, assignments, enrolments, and face photos. Faculty accounts take attendance with 1–8 classroom images. Results include the annotated photograph, model scores, review decisions, and exports.
 
-```powershell
-$env:PGPASSWORD = "<your local PostgreSQL password>"
-.\start-local-postgres.ps1 -User postgres
-```
-
-This development fallback stores embeddings as PostgreSQL JSON because exact matching happens in the worker. Production should keep `EDUTRACE_PGVECTOR_ENABLED=true` and install the `vector` extension.
-
+The local threshold is `0.50`. Calibrate production thresholds on representative, consented classroom images before deployment. Local PostgreSQL may run with `EDUTRACE_PGVECTOR_ENABLED=false`; production should enable the pgvector extension.
 ## Capacity benchmark
 
 Copy `benchmark-manifest.example.json`, point it at consented classroom images, set the expected visible-face counts, and run:

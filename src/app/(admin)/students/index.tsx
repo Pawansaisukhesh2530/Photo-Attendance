@@ -5,13 +5,12 @@ import { StyleSheet, View } from 'react-native';
 import {
   AdminPagedList,
   AdminScaffold,
+  Button,
   Avatar,
   Badge,
-  Card,
   DataTableRow,
   FilterChips,
   Icon,
-  AnimatedPressable,
   SearchField,
   StudentRosterRow,
   Text,
@@ -226,6 +225,7 @@ export default function AdminStudentsScreen() {
       title="Students"
       subtitle={`${total} ${total === 1 ? 'student' : 'students'} across the institution`}
       breadcrumbs={[{ label: 'Administration', href: '/(admin)/dashboard' }, { label: 'Students' }]}
+      action={<Button label={isExpanded ? 'Add student' : 'Add'} icon="add" onPress={() => router.push('/(admin)/students/new')} />}
       {...(settings
         ? { institutionName: settings.institutionName, institutionCode: settings.institutionCode }
         : {})}

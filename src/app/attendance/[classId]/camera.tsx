@@ -104,11 +104,10 @@ export default function CameraScreen() {
     [selectedClassIds, allClasses],
   );
 
-  const course = selectedClasses[0];
-
   const cameraRef = useRef<CameraView>(null);
   const [phase, setPhase] = useState<Phase>('preview');
-  const [photo, setPhoto] = useState<CameraCapturedPicture | null>(null);
+  const [photos, setPhotos] = useState<CameraCapturedPicture[]>([]);
+  const photo = photos[photos.length - 1] ?? null;
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,7 +155,7 @@ export default function CameraScreen() {
         return;
       }
 
-      setPhoto(result);
+      setPhotos((current) => [...current, result].slice(0, 8));
       setPhase('captured');
     } catch {
       setError('The camera failed to take a photo. Please try again.');
@@ -166,7 +165,7 @@ export default function CameraScreen() {
   }, [cameraReady, capturing]);
 
   const handleRetake = useCallback((): void => {
-    setPhoto(null);
+    setPhotos((current) => current.slice(0, -1));
     setError(null);
     setPhase('preview');
   }, []);
@@ -180,9 +179,7 @@ export default function CameraScreen() {
       const session = await capture.mutateAsync({
         // The selected classes are the recognition scope and must reach the service.
         classIds: selectedClassIds,
-        photoUri: photo.uri,
-        width: photo.width,
-        height: photo.height,
+        photos,
       });
 
       // `replace`, so a back gesture from processing cannot return to a viewfinder still
@@ -197,7 +194,7 @@ export default function CameraScreen() {
         isApiError(caught) ? caught.message : 'The photo could not be uploaded. Please try again.',
       );
     }
-  }, [photo, classId, capture, selectedClassIds]);
+  }, [photo, photos, classId, capture, selectedClassIds]);
 
   /* ================================================================ *
    * Permission: resolving
@@ -358,7 +355,7 @@ export default function CameraScreen() {
           <View style={styles.busyOverlay}>
             <ActivityIndicator size="large" color={palette.surfaceContainerLowest} />
             <Text variant="bodyLg" color={palette.surfaceContainerLowest}>
-              Uploading photo…
+              Uploading {photos.length} photo{photos.length === 1 ? '' : 's'}…
             </Text>
           </View>
         ) : null}
@@ -375,13 +372,13 @@ export default function CameraScreen() {
             <View style={styles.hint}>
               <Icon name="info" size={16} color={palette.outlineVariant} />
               <Text variant="bodyMd" color={palette.outlineVariant} style={styles.flex}>
-                Check that faces are visible and the photo is sharp.
+                Photo {photos.length} saved. Check that faces are visible and the photo is sharp.
               </Text>
             </View>
           )}
 
           <Button
-            label={error ? 'Retry upload' : 'Use this photo'}
+            label={error ? 'Retry upload' : `Process ${photos.length} photo${photos.length === 1 ? '' : 's'}`}
             icon="forward"
             iconPosition="trailing"
             size="lg"
@@ -392,7 +389,17 @@ export default function CameraScreen() {
           />
 
           <Button
-            label="Retake"
+            label={photos.length < 8 ? 'Add another angle' : 'Maximum 8 photos'}
+            icon="camera"
+            variant="secondary"
+            size="lg"
+            fullWidth
+            disabled={busy || photos.length >= 8}
+            onPress={() => { setError(null); setPhase('preview'); }}
+          />
+
+          <Button
+            label="Retake last photo"
             icon="retake"
             variant="secondary"
             size="lg"
@@ -557,7 +564,7 @@ export default function CameraScreen() {
         </View>
 
         <Text variant="labelMd" color={palette.outline} align="center">
-          One photo is all that is needed
+          {photos.length === 0 ? 'Take 3–4 overlapping angles for a large classroom' : `${photos.length} of 8 photos captured`}
         </Text>
       </View>
     </View>

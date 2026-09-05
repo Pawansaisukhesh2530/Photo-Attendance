@@ -40,6 +40,22 @@ def create_access_token(user: User) -> str:
     )
 
 
+def create_image_token(session_id: str, image_id: str) -> str:
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    return jwt.encode({"session_id": session_id, "image_id": image_id, "purpose": "session-image", "iat": now, "exp": now + timedelta(minutes=10)}, settings.jwt_secret, algorithm="HS256")
+
+
+def verify_image_token(raw: str, session_id: str, image_id: str) -> None:
+    try:
+        payload = jwt.decode(raw, get_settings().jwt_secret, algorithms=["HS256"])
+        valid = payload.get("purpose") == "session-image" and payload.get("session_id") == session_id and payload.get("image_id") == image_id
+    except jwt.PyJWTError:
+        valid = False
+    if not valid:
+        raise Problem(401, "Invalid image token", "The image link is invalid or expired.")
+
+
 def issue_refresh_token(db: Session, user: User) -> str:
     settings = get_settings()
     raw = secrets.token_urlsafe(48)

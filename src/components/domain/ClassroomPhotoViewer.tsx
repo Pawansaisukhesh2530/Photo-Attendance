@@ -28,7 +28,7 @@ export interface ClassroomPhotoViewerProps {
  *
  * ============================================================================
  * NO DETECTION HAPPENS HERE. This component draws rectangles it was handed. It
- * does not analyse the image. In Phase 4 those rectangles come from the mock
+ * does not analyse the image. Those rectangles come from the backend
  * service; later they will come from the backend. The code path is identical.
  * ============================================================================
  *

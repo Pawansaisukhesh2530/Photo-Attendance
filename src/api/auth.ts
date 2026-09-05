@@ -4,8 +4,7 @@ import type { AuthSession, User } from '@/types';
 import { request } from './client';
 
 /**
- * Real HTTP implementation. Inactive while USE_MOCK_API is true.
- * Endpoint paths here are the contract proposal for the backend developer.
+ * Authentication calls for the live backend.
  */
 export const authApi: AuthService = {
   login: (payload) =>
@@ -19,5 +18,5 @@ export const authApi: AuthService = {
     request<void>('auth/forgot-password', { method: 'POST', body: payload }),
 
   refresh: (refreshToken) =>
-    request<AuthSession>('auth/refresh', { method: 'POST', body: { refreshToken } }),
+    request<AuthSession>('auth/refresh', { method: 'POST', body: { refreshToken }, retried: true }),
 };

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EDUTRACE_", env_file=".env", extra="ignore")
 
     env: str = "development"
-    tester_enabled: bool = False
+    cors_origins: str = "http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006,http://127.0.0.1:19006"
     database_url: str = "sqlite:///./edutrace.db"
     pgvector_enabled: bool = False
     redis_url: str = "redis://localhost:6379/0"

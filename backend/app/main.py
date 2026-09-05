@@ -1,10 +1,8 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from fastapi.openapi.utils import get_openapi
-from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -14,7 +12,6 @@ from .errors import Problem, problem_handler
 from .routes_admin import router as admin_router
 from .routes_attendance import router as attendance_router
 from .routes_auth import router as auth_router
-from .routes_tester import router as tester_router
 from .security import require_roles
 from .models import Role, User
 from fastapi import Depends
@@ -36,15 +33,14 @@ app = FastAPI(
 app.add_exception_handler(Problem, problem_handler)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
-    allow_credentials=False,
+    allow_origins=[x.strip() for x in get_settings().cors_origins.split(",") if x.strip()],
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(attendance_router, prefix="/api/v1")
-app.include_router(tester_router,prefix="/api/v1")
 
 
 def custom_openapi():
@@ -62,20 +58,9 @@ def custom_openapi():
 
 app.openapi=custom_openapi
 
-tester_dir=Path(__file__).parent/"test_ui"
-if tester_dir.is_dir():
-    app.mount("/tester/assets",StaticFiles(directory=tester_dir),name="tester-assets")
-
-
-@app.get("/tester",include_in_schema=False)
-def tester():
-    if not get_settings().tester_enabled:raise Problem(404,"Not found","The local tester is not enabled.")
-    return FileResponse(tester_dir/"index.html")
-
-
 @app.get("/",include_in_schema=False)
 def root():
-    return RedirectResponse("/tester" if get_settings().tester_enabled else "/docs")
+    return RedirectResponse("/docs")
 
 
 @app.get("/api/v1/health/live", tags=["System"])

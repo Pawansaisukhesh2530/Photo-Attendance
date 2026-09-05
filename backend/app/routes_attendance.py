@@ -14,13 +14,13 @@ from .db import get_db
 from .domain import (audit, authorized_class_ids, candidate_student_ids, ensure_version,
                      faculty_for_user, make_job_key, page, require_session_access)
 from .errors import Problem
-from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass,
+from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass, CourseClass,
                      AttendanceSessionImage, AttendanceStatus, Enrolment, JobStatus,
                      RecognitionJob, RecognitionCandidate, FaceDetection, Role, SessionStatus, StudentFaceEmbedding,
                      StudentFaceImage, Student, TwinReview, User, InstitutionSettings)
 from .schemas import (AmendmentRequest, AttendanceRecordOut, FinalizeRequest, Page,
                       SessionCreate, SessionOut)
-from .security import current_user, require_roles
+from .security import create_image_token, current_user, require_roles, verify_image_token
 from .storage import ObjectStorage, validate_image
 from .worker import process_attendance, process_face_enrolment
 
@@ -122,7 +122,7 @@ async def upload_session_images(session_id:str,files:list[UploadFile]=File(...),
 def list_session_images(session_id:str,db:Session=Depends(get_db),actor:User=Depends(current_user)):
     require_session_access(db,actor,session_id)
     rows=db.scalars(select(AttendanceSessionImage).where(AttendanceSessionImage.session_id==session_id).order_by(AttendanceSessionImage.created_at)).all()
-    return {"items":[{"id":r.id,"checksum":r.checksum,"width":r.width,"height":r.height,"processing_error":r.processing_error,"image_url":f"/api/v1/attendance/sessions/{session_id}/images/{r.id}/content","annotated_url":f"/api/v1/attendance/sessions/{session_id}/images/{r.id}/annotated"} for r in rows]}
+    return {"items":[{"id":r.id,"checksum":r.checksum,"width":r.width,"height":r.height,"processing_error":r.processing_error,"image_url":f"/api/v1/attendance/sessions/{session_id}/images/{r.id}/content?token={create_image_token(session_id,r.id)}","annotated_url":f"/api/v1/attendance/sessions/{session_id}/images/{r.id}/annotated?token={create_image_token(session_id,r.id)}"} for r in rows]}
 
 
 def _session_image(db:Session,actor:User,session_id:str,image_id:str):
@@ -132,14 +132,16 @@ def _session_image(db:Session,actor:User,session_id:str,image_id:str):
 
 
 @router.get("/attendance/sessions/{session_id}/images/{image_id}/content",include_in_schema=False)
-def session_image_content(session_id:str,image_id:str,db:Session=Depends(get_db),actor:User=Depends(current_user)):
-    row=_session_image(db,actor,session_id,image_id)
+def session_image_content(session_id:str,image_id:str,token:str=Query(...),db:Session=Depends(get_db)):
+    verify_image_token(token,session_id,image_id);row=db.get(AttendanceSessionImage,image_id)
+    if not row or row.session_id!=session_id:raise Problem(404,"Session image not found","The image does not exist.")
     return Response(ObjectStorage().get(row.object_key),media_type=row.mime_type,headers={"Cache-Control":"private, no-store"})
 
 
 @router.get("/attendance/sessions/{session_id}/images/{image_id}/annotated")
-def annotated_session_image(session_id:str,image_id:str,db:Session=Depends(get_db),actor:User=Depends(current_user)):
-    row=_session_image(db,actor,session_id,image_id)
+def annotated_session_image(session_id:str,image_id:str,token:str=Query(...),db:Session=Depends(get_db)):
+    verify_image_token(token,session_id,image_id);row=db.get(AttendanceSessionImage,image_id)
+    if not row or row.session_id!=session_id:raise Problem(404,"Session image not found","The image does not exist.")
     from PIL import Image,ImageDraw,ImageFont
     image=Image.open(io.BytesIO(ObjectStorage().get(row.object_key))).convert("RGB");draw=ImageDraw.Draw(image)
     detections=db.scalars(select(FaceDetection).where(FaceDetection.image_id==image_id)).all()
@@ -204,20 +206,35 @@ def progress(session_id:str,db:Session=Depends(get_db),actor:User=Depends(curren
 def get_session(session_id:str,db:Session=Depends(get_db),actor:User=Depends(current_user)):
     session=require_session_access(db,actor,session_id)
     class_ids=list(db.scalars(select(AttendanceSessionClass.class_id).where(AttendanceSessionClass.session_id==session_id)))
+    classes=list(db.scalars(select(CourseClass).where(CourseClass.id.in_(class_ids))))
     records=list(db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id==session_id)))
+    images=list(db.scalars(select(AttendanceSessionImage).where(AttendanceSessionImage.session_id==session_id).order_by(AttendanceSessionImage.created_at)))
     detections=db.scalars(select(FaceDetection).join(AttendanceSessionImage,AttendanceSessionImage.id==FaceDetection.image_id).where(AttendanceSessionImage.session_id==session_id)).all()
     evidence=[]
     for detection in detections:
         candidates=db.scalars(select(RecognitionCandidate).where(RecognitionCandidate.detection_id==detection.id).order_by(RecognitionCandidate.rank)).all()
         evidence.append({"detection_id":detection.id,"image_id":detection.image_id,"box":detection.box,"quality":detection.quality,"model_version":detection.model_version,"candidates":[{"student_id":c.student_id,"score":c.score,"rank":c.rank} for c in candidates]})
-    return {"session":SessionOut.model_validate(session),"class_ids":class_ids,"records":[AttendanceRecordOut.model_validate(r) for r in records],"evidence":evidence}
+    enriched=[]
+    for record in records:
+        student=db.get(Student,record.student_id)
+        student_class=db.scalar(select(Enrolment.class_id).where(Enrolment.student_id==record.student_id,Enrolment.class_id.in_(class_ids)))
+        face_box=None
+        for item in evidence:
+            if item["candidates"] and item["candidates"][0]["student_id"]==record.student_id and item["candidates"][0]["score"]>=get_settings().match_threshold:
+                source=next((x for x in images if x.id==item["image_id"]),None);b=item["box"]
+                if source:face_box={"x":b["x1"]/source.width,"y":b["y1"]/source.height,"width":(b["x2"]-b["x1"])/source.width,"height":(b["y2"]-b["y1"])/source.height}
+                break
+        enriched.append({**AttendanceRecordOut.model_validate(record).model_dump(mode="json"),"student_name":student.name,"roll_number":student.roll_number,"class_id":student_class or class_ids[0],"face_box":face_box})
+    counts={status.value:sum(1 for r in records if r.status==status) for status in AttendanceStatus};resolved=counts["PRESENT"]+counts["ABSENT"]
+    return {"session":SessionOut.model_validate(session),"class_ids":class_ids,"classes":[{"id":c.id,"subject":c.subject,"display_code":c.code,"student_count":db.scalar(select(func.count()).select_from(Enrolment).where(Enrolment.class_id==c.id)) or 0} for c in classes],"records":enriched,"evidence":evidence,"images":[{"id":x.id,"width":x.width,"height":x.height,"content_url":f"/api/v1/attendance/sessions/{session_id}/images/{x.id}/annotated?token={create_image_token(session_id,x.id)}"} for x in images],"summary":{"total":len(records),"present":counts["PRESENT"],"absent":counts["ABSENT"],"review":counts["REVIEW"],"unknown":counts["UNKNOWN"],"recognized":sum(1 for r in records if r.score is not None),"unmatched_faces":sum(1 for x in evidence if not x["candidates"] or x["candidates"][0]["score"]<get_settings().match_threshold),"percentage":round(100*counts["PRESENT"]/resolved,2) if resolved else 0}}
 
 
 @router.patch("/attendance/records/{record_id}",response_model=AttendanceRecordOut)
 def amend_record(record_id:str,payload:AmendmentRequest,db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.FACULTY))):
     record=db.get(AttendanceRecord,record_id)
     if not record:raise Problem(404,"Attendance record not found","The record does not exist.")
-    session=require_session_access(db,actor,record.session_id);ensure_version(record,payload.version)
+    session=require_session_access(db,actor,record.session_id)
+    if payload.version is not None:ensure_version(record,payload.version)
     if session.status==SessionStatus.FINALIZED and not (payload.reason and payload.reason.strip()):raise Problem(422,"Reason required","A finalized attendance change requires a reason.")
     before={"status":record.status.value};record.status=AttendanceStatus(payload.status);record.amended_by=actor.id;record.amended_at=datetime.now(timezone.utc);record.amendment_reason=payload.reason;record.version+=1
     audit(db,actor,"FINALIZED_ATTENDANCE_AMENDED" if session.status==SessionStatus.FINALIZED else "ATTENDANCE_AMENDED",record,before=before,after={"status":record.status.value},reason=payload.reason);db.commit();return record
@@ -292,16 +309,19 @@ def report(class_id:str|None=None,faculty_id:str|None=None,from_date:date|None=Q
 
 
 @router.get("/reports/attendance/students")
-def student_report(page_number:int=Query(1,alias="page"),page_size:int=25,low_attendance_only:bool=False,db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
+def student_report(page_number:int=Query(1,alias="page"),page_size:int=25,low_attendance_only:bool=Query(False,alias="lowAttendanceOnly"),db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
     base=select(AttendanceRecord.student_id,
                 func.sum(case((AttendanceRecord.status==AttendanceStatus.PRESENT,1),else_=0)).label("attended"),
                 func.count().label("total")).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id).where(AttendanceSession.status==SessionStatus.FINALIZED,AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT]))
     if actor.role==Role.FACULTY:base=base.where(AttendanceSession.faculty_id==faculty_for_user(db,actor).id)
     rows=db.execute(base.group_by(AttendanceRecord.student_id)).all();settings_row=db.get(InstitutionSettings,1);threshold=settings_row.attendance_threshold if settings_row else 75
-    items=[{"student_id":sid,"attended":int(attended),"total":total,"percentage":round(100*attended/total,2)} for sid,attended,total in rows]
+    items=[]
+    for sid,attended,total in rows:
+        student=db.get(Student,sid)
+        items.append({"studentId":sid,"rollNumber":student.roll_number if student else "","name":student.name if student else "Unknown student","avatarUrl":None,"attendedSessions":int(attended),"totalSessions":total,"percentage":round(100*attended/total,2),"belowThreshold":round(100*attended/total,2)<threshold})
     if low_attendance_only:items=[x for x in items if x["percentage"]<threshold]
     start=(max(page_number,1)-1)*min(max(page_size,1),100);size=min(max(page_size,1),100);subset=items[start:start+size]
-    return {"items":subset,"page":max(page_number,1),"page_size":size,"total":len(items),"has_more":start+size<len(items),"threshold":threshold}
+    return {"items":subset,"page":max(page_number,1),"pageSize":size,"total":len(items),"hasMore":start+size<len(items),"threshold":threshold}
 
 
 @router.get("/attendance/sessions/{session_id}/export")

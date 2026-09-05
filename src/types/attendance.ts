@@ -241,8 +241,8 @@ export interface CaptureAttendanceRequest {
    * that would let a face from an unrelated class enter a register it has no business in.
    */
   classIds: Id[];
-  /** Local file URI of the compressed classroom photo. */
-  photoUri: string;
+  /** Local file URIs for 1–8 overlapping classroom photographs. */
+  photoUris: string[];
   capturedAt: IsoDateTime;
 }
 
