@@ -215,22 +215,27 @@ export default function AdminFacultyFormScreen() {
               {...(fieldErrors.designation ? { error: fieldErrors.designation } : {})}
             />
 
-            <View style={styles.field}>
-              <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
-                DEPARTMENT
-              </Text>
-              <FilterChips
-                options={departmentOptions}
-                selected={department}
-                onSelect={setDepartment}
-                contentInset={0}
-              />
-              {fieldErrors.department ? (
-                <Text variant="labelMd" color={palette.error}>
-                  {fieldErrors.department}
+            <Input
+              label="Department"
+              value={department}
+              onChangeText={setDepartment}
+              placeholder="Computer Science"
+              autoCapitalize="words"
+              {...(fieldErrors.department ? { error: fieldErrors.department } : {})}
+            />
+            {departmentOptions.length > 0 ? (
+              <View style={styles.field}>
+                <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
+                  SAVED DEPARTMENTS
                 </Text>
-              ) : null}
-            </View>
+                <FilterChips
+                  options={departmentOptions}
+                  selected={department}
+                  onSelect={setDepartment}
+                  contentInset={0}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
