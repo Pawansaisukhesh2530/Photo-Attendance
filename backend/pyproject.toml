@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edutrace-backend"
+version = "0.1.0"
+description = "Standalone multi-image classroom attendance backend"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "sqlalchemy>=2.0.43,<3",
+  "alembic>=1.16,<2",
+  "psycopg[binary]>=3.2,<4",
+  "pgvector>=0.4,<1",
+  "pydantic-settings>=2.10,<3",
+  "pyjwt[crypto]>=2.10,<3",
+  "pwdlib[argon2]>=0.2,<1",
+  "python-multipart>=0.0.20,<1",
+  "email-validator>=2.2,<3",
+  "celery[redis]>=5.5,<6",
+  "redis>=6,<7",
+  "boto3>=1.40,<2",
+  "pillow>=11,<13",
+  "pillow-heif>=1,<2",
+  "numpy>=2.2,<3",
+  "openpyxl>=3.1,<4",
+  "reportlab>=4.4,<5",
+]
+
+[project.optional-dependencies]
+vision = ["onnxruntime-gpu>=1.22,<2", "opencv-python-headless>=4.11,<5"]
+test = ["pytest>=8.4,<9", "pytest-cov>=6,<8", "httpx>=0.28,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
