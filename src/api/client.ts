@@ -66,6 +66,54 @@ function errorKindForStatus(status: number): ApiErrorKind {
   return 'UNKNOWN';
 }
 
+function toClientFieldName(value: string): string {
+  return value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+/** Convert FastAPI problem details and Pydantic validation arrays into safe UI strings. */
+function parseErrorPayload(payload: unknown): {
+  message?: string;
+  fieldErrors?: Record<string, string>;
+} {
+  if (!payload || typeof payload !== 'object') return {};
+
+  const value = payload as Record<string, unknown>;
+  const explicitMessage = typeof value.message === 'string' ? value.message : undefined;
+  const detailMessage = typeof value.detail === 'string' ? value.detail : undefined;
+  const fieldErrors: Record<string, string> = {};
+
+  if (value.fieldErrors && typeof value.fieldErrors === 'object') {
+    for (const [field, error] of Object.entries(value.fieldErrors as Record<string, unknown>)) {
+      if (typeof error === 'string') fieldErrors[toClientFieldName(field)] = error;
+    }
+  }
+
+  let firstValidationMessage: string | undefined;
+  if (Array.isArray(value.detail)) {
+    for (const item of value.detail) {
+      if (!item || typeof item !== 'object') continue;
+      const issue = item as Record<string, unknown>;
+      const message = typeof issue.msg === 'string' ? issue.msg : undefined;
+      if (!message) continue;
+      firstValidationMessage ??= message;
+
+      if (Array.isArray(issue.loc)) {
+        const field = [...issue.loc].reverse().find((part) => typeof part === 'string');
+        if (typeof field === 'string' && field !== 'body') {
+          fieldErrors[toClientFieldName(field)] = message;
+        }
+      }
+    }
+  }
+
+  return {
+    ...(explicitMessage || detailMessage || firstValidationMessage
+      ? { message: explicitMessage ?? detailMessage ?? firstValidationMessage }
+      : {}),
+    ...(Object.keys(fieldErrors).length > 0 ? { fieldErrors } : {}),
+  };
+}
+
 /** Copy shown to the user. Deliberately plain, no jargon, no status codes. */
 function messageForKind(kind: ApiErrorKind): string {
   switch (kind) {
@@ -157,13 +205,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       let fieldErrors: Record<string, string> | undefined;
       let serverMessage: string | undefined;
       try {
-        const payload = (await response.json()) as {
-          message?: string;
-          detail?: string;
-          fieldErrors?: Record<string, string>;
-        };
-        serverMessage = payload.message ?? payload.detail;
-        fieldErrors = payload.fieldErrors;
+        const parsed = parseErrorPayload(await response.json());
+        serverMessage = parsed.message;
+        fieldErrors = parsed.fieldErrors;
       } catch {
         // Non-JSON error body; fall back to our generic copy.
       }
@@ -249,7 +293,7 @@ export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='fi
   const form=new FormData();
   fileUris.forEach((uri,index)=>form.append(fieldName,{uri,name:`image-${index+1}.jpg`,type:'image/jpeg'} as unknown as Blob));
   const response=await fetch(buildUrl(path),{method:'POST',body:form,headers:{Accept:'application/json',...(getAccessToken()?{Authorization:`Bearer ${getAccessToken()}`}:{})}});
-  if(!response.ok){let detail='Upload failed.';try{const p=await response.json() as {detail?:string};detail=p.detail??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
+  if(!response.ok){let detail='Upload failed.';try{detail=parseErrorPayload(await response.json()).message??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
   return response.json() as Promise<T>;
 }
 
