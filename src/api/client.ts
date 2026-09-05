@@ -242,9 +242,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
  * offer "retry upload" rather than "retake photo" — losing a classroom photo because
  * campus wifi dropped would be a genuinely bad experience.
  */
-export async function uploadPhoto<T>(
+export async function uploadAttendanceMedia<T>(
   path: string,
-  photoUri: string,
+  mediaUri: string,
+  media: { fieldName: 'photo' | 'sweep'; name: string; type: 'image/jpeg' | 'video/mp4' },
   fields: Record<string, string> = {},
   onProgressUnsupported?: never,
 ): Promise<T> {
@@ -253,10 +254,10 @@ export async function uploadPhoto<T>(
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
   // React Native's FormData accepts this shape for file parts.
-  form.append('photo', {
-    uri: photoUri,
-    name: 'classroom.jpg',
-    type: 'image/jpeg',
+  form.append(media.fieldName, {
+    uri: mediaUri,
+    name: media.name,
+    type: media.type,
   } as unknown as Blob);
 
   const controller = new AbortController();

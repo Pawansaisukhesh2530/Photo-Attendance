@@ -6,13 +6,16 @@ from app.db import SessionLocal
 from app.domain import build_safe_unknown_records, candidate_student_ids
 from app.models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass,
                         AttendanceStatus, CourseClass, Enrolment, FacultyClassAssignment,
-                        SessionStatus, Student)
+                        PanoramaDraft, SessionStatus, Student)
 from tests.conftest import auth
 import numpy as np
 from app.recognition import decide_match
 from app.worker import resolve_student_status
 from PIL import Image
 import io
+import os
+import tempfile
+from app.storage import ObjectStorage, validate_image
 
 
 def test_successful_no_match_is_absent_but_missing_inputs_stay_unknown():
@@ -156,3 +159,52 @@ def test_local_multi_image_workflow_and_all_exports(client, identities):
     for format_,mime in [("csv","text/csv"),("json","application/json"),("xlsx","spreadsheetml"),("pdf","application/pdf")]:
         exported=client.get(f"/api/v1/attendance/sessions/{sid}/export?format={format_}",headers=headers)
         assert exported.status_code==200 and mime in exported.headers["content-type"] and exported.content
+
+
+def test_panorama_preview_contract_and_session_attachment(client, identities):
+    assigned,_,_,_=setup_class_scope(identities);headers=auth(identities["faculty_token"])
+    image=validate_image(_png((80, 100, 140)))
+    with SessionLocal.begin() as db:
+        draft=PanoramaDraft(faculty_id=identities["faculty_id"],object_key="panorama-drafts/test.jpg",
+                            checksum=image.checksum,mime_type=image.mime_type,width=image.width,height=image.height)
+        db.add(draft);db.flush();draft_id=draft.id
+        ObjectStorage().put(draft.object_key,image)
+    created=client.post("/api/v1/attendance/sessions",json={"class_ids":[assigned],"capture_mode":"PANORAMA"},headers=headers)
+    assert created.status_code==201 and created.json()["capture_mode"]=="PANORAMA"
+    attached=client.post(f"/api/v1/attendance/sessions/{created.json()['id']}/panorama",
+                         json={"draft_id":draft_id},headers=headers)
+    assert attached.status_code==201 and attached.json()["width"]==160
+    images=client.get(f"/api/v1/attendance/sessions/{created.json()['id']}/images",headers=headers).json()["items"]
+    assert len(images)==1 and client.get(images[0]["image_url"]).status_code==200
+
+
+def test_panorama_rejects_non_video_upload(client, identities):
+    response=client.post("/api/v1/attendance/panorama/preview",headers=auth(identities["faculty_token"]),
+                         files={"sweep":("not-video.txt",b"not a video","text/plain")})
+    assert response.status_code==415
+
+
+def test_panorama_sweep_is_stitched_and_previewed(client, identities):
+    import cv2
+    rng=np.random.default_rng(42)
+    canvas=rng.integers(0,256,size=(320,1600,3),dtype=np.uint8)
+    for x in range(80,1520,160):
+        cv2.circle(canvas,(x,160),35,(255,255,255),5)
+        cv2.putText(canvas,str(x),(x-35,250),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,0),3)
+    handle=tempfile.NamedTemporaryFile(suffix=".mp4",delete=False);path=handle.name;handle.close()
+    try:
+        writer=cv2.VideoWriter(path,cv2.VideoWriter_fourcc(*"mp4v"),8,(640,320))
+        assert writer.isOpened()
+        for x in np.linspace(0,960,16,dtype=int):writer.write(canvas[:,x:x+640])
+        writer.release()
+        with open(path,"rb") as source:video=source.read()
+    finally:
+        try:os.unlink(path)
+        except OSError:pass
+    response=client.post("/api/v1/attendance/panorama/preview",headers=auth(identities["faculty_token"]),
+                         files={"sweep":("classroom.mp4",video,"video/mp4")})
+    assert response.status_code==201,response.text
+    preview=response.json()
+    assert preview["width"]>640 and preview["height"]>200
+    image=client.get(preview["photo_uri"])
+    assert image.status_code==200 and image.headers["content-type"]=="image/jpeg"

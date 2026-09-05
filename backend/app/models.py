@@ -156,10 +156,23 @@ class AttendanceSession(Versioned, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     faculty_id: Mapped[str] = mapped_column(ForeignKey("faculty.id"), index=True)
     attendance_date: Mapped[date] = mapped_column(Date, default=date.today)
+    capture_mode: Mapped[str] = mapped_column(String(20), default="STANDARD")
     status: Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), default=SessionStatus.DRAFT, index=True)
     scope_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PanoramaDraft(Base):
+    __tablename__ = "panorama_drafts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    faculty_id: Mapped[str] = mapped_column(ForeignKey("faculty.id", ondelete="CASCADE"), index=True)
+    object_key: Mapped[str] = mapped_column(String(600), unique=True)
+    checksum: Mapped[str] = mapped_column(String(64), index=True)
+    mime_type: Mapped[str] = mapped_column(String(100), default="image/jpeg")
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class AttendanceSessionClass(Base):

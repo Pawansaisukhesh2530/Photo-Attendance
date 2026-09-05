@@ -456,6 +456,8 @@ export default function ResultsScreen() {
       {showPhoto ? (
         <ClassroomPhotoViewer
           photoUri={session.photoUri}
+          photoWidth={session.photoWidth}
+          photoHeight={session.photoHeight}
           records={session.records}
           focusedRecordId={focusedRecordId}
           onSelectRecord={(record) => {

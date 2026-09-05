@@ -49,6 +49,7 @@ export type {
 
 export type {
   AttendanceHistoryQuery,
+  AttendanceCaptureMode,
   AttendanceRecord,
   AttendanceSession,
   AttendanceSessionSummary,
@@ -58,6 +59,8 @@ export type {
   FinalizeSessionRequest,
   ProcessingProgress,
   ProcessingStage,
+  PanoramaPreview,
+  PreparePanoramaRequest,
   ProcessingWarning,
   ProcessingWarningCode,
   ResolveTwinReviewRequest,

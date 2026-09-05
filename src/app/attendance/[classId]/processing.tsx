@@ -92,7 +92,7 @@ export default function ProcessingScreen() {
           </Text>
           <Text variant="bodyMd" color={palette.onSurfaceVariant}>
             {failed
-              ? 'Your photo is saved. Nothing has been recorded yet.'
+              ? 'Your classroom capture is saved. Nothing has been recorded yet.'
               : `${session?.className ?? 'Class'} · ${session?.classDisplayCode ?? ''}`}
           </Text>
         </View>
@@ -100,6 +100,8 @@ export default function ProcessingScreen() {
         {/* Captured photo. Overlays are off — no results exist yet. */}
         <ClassroomPhotoViewer
           photoUri={session?.photoUri ?? null}
+          photoWidth={session?.photoWidth}
+          photoHeight={session?.photoHeight}
           records={[]}
           showBoxes={false}
           caption={
@@ -136,7 +138,7 @@ export default function ProcessingScreen() {
                 />
               ) : null}
               <Button
-                label="Retake photo"
+                  label={session?.captureMode === 'PANORAMA' ? 'Retake panorama' : 'Retake photo'}
                 icon="camera"
                 variant="secondary"
                 fullWidth
@@ -164,6 +166,7 @@ export default function ProcessingScreen() {
             progress={progress.progress}
             detail={progress.detail}
             failed={failed}
+            captureMode={session?.captureMode}
           />
         </Card>
 
@@ -195,7 +198,7 @@ export default function ProcessingScreen() {
         tone="danger"
         icon="close"
         title="Cancel this capture?"
-        message="The photo will be discarded and no attendance will be recorded for this session."
+        message="The classroom capture will be discarded and no attendance will be recorded for this session."
         confirmLabel="Discard capture"
         cancelLabel="Keep processing"
         onConfirm={handleCancel}

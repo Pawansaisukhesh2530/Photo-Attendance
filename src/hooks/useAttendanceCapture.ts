@@ -3,15 +3,24 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { attendanceService } from '@/services';
 import { queryKeys } from '@/store/queryClient';
-import type { AttendanceSession, ProcessingProgress } from '@/types';
-import { prepareClassroomPhoto } from '@/utils/image';
+import type { AttendanceCaptureMode, AttendanceSession, ProcessingProgress } from '@/types';
+
+export function usePreparePanorama() {
+  return useMutation({
+    mutationFn: (sweepUri: string) =>
+      attendanceService.preparePanorama({
+        sweepUri,
+        capturedAt: new Date().toISOString(),
+      }),
+  });
+}
 
 /**
  * Submits a captured photograph and opens a session.
  *
- * Compression happens here rather than on the camera screen so the screen stays concerned
- * only with capture, and so the resize step sits on the same side of the boundary as the
- * upload it exists to serve.
+ * Media is uploaded at the resolution produced by the device. Classroom faces can occupy
+ * very few pixels, especially in a panorama, so client-side resizing or JPEG recompression
+ * would directly reduce recognition quality. Preview derivatives belong on the backend.
  */
 export function useCaptureAttendance() {
   const queryClient = useQueryClient();
@@ -20,15 +29,17 @@ export function useCaptureAttendance() {
     mutationFn: async (variables: {
       /** The selected classes. One entry is ordinary single-class attendance. */
       classIds: string[];
+      captureMode: AttendanceCaptureMode;
       photos: { uri: string; width: number; height: number }[];
+      panoramaDraftId?: string;
     }): Promise<AttendanceSession> => {
-      const prepared = await Promise.all(variables.photos.map((photo) =>
-        prepareClassroomPhoto(photo.uri, photo.width, photo.height),
-      ));
-
       return attendanceService.captureAttendance({
         classIds: variables.classIds,
-        photoUris: prepared.map((photo) => photo.uri),
+        captureMode: variables.captureMode,
+        // Keep original device files. Server-side previews may be resized separately,
+        // but recognition must receive the full-resolution classroom evidence.
+        photoUris: variables.photos.map((photo) => photo.uri),
+        panoramaDraftId: variables.panoramaDraftId,
         capturedAt: new Date().toISOString(),
       });
     },

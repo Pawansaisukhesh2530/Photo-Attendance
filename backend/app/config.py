@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     duplicate_template_threshold: float = Field(default=0.995, ge=-1, le=1)
     cross_identity_review_threshold: float = Field(default=0.75, ge=-1, le=1)
     max_upload_bytes: int = 25 * 1024 * 1024
+    max_panorama_video_bytes: int = 220 * 1024 * 1024
     max_image_pixels: int = 60_000_000
     min_enrolment_images: int = 3
     max_enrolment_images: int = 5

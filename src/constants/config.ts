@@ -16,7 +16,8 @@ export const API_BASE_URL =
 export const API_TIMEOUT_MS = 30_000;
 
 /** Upload timeout in ms — a classroom photo over campus wifi can be slow. */
-export const UPLOAD_TIMEOUT_MS = 120_000;
+// Full-resolution stills and short 4K panorama sweeps are intentionally not downscaled.
+export const UPLOAD_TIMEOUT_MS = 300_000;
 
 /** Institutional attendance threshold, below which a student is flagged. */
 export const ATTENDANCE_THRESHOLD = 75;

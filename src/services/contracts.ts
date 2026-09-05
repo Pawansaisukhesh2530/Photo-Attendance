@@ -31,6 +31,8 @@ import type {
   InstitutionSettings,
   LoginRequest,
   Paginated,
+  PanoramaPreview,
+  PreparePanoramaRequest,
   UpdateClassRequest,
   UpdateEnrolmentRequest,
   UpdateFacultyRequest,
@@ -162,6 +164,9 @@ export interface StudentService {
 }
 
 export interface AttendanceService {
+  /** Uploads and stitches a silent camera sweep without creating attendance yet. */
+  preparePanorama(request: PreparePanoramaRequest): Promise<PanoramaPreview>;
+
   /**
    * Submits the single classroom photograph and opens a session.
    *

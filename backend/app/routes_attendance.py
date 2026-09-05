@@ -2,9 +2,12 @@ import hashlib
 import csv
 import io
 import json
+import os
+import tempfile
+import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
@@ -15,12 +18,13 @@ from .domain import (audit, authorized_class_ids, candidate_student_ids, ensure_
                      faculty_for_user, make_job_key, page, require_session_access)
 from .errors import Problem
 from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass, CourseClass,
-                     AttendanceSessionImage, AttendanceStatus, Enrolment, JobStatus,
+                     AttendanceSessionImage, AttendanceStatus, Enrolment, JobStatus, PanoramaDraft,
                      RecognitionJob, RecognitionCandidate, FaceDetection, Role, SessionStatus, StudentFaceEmbedding,
                      StudentFaceImage, Student, TwinReview, User, InstitutionSettings)
 from .schemas import (AmendmentRequest, AttendanceRecordOut, FinalizeRequest, Page,
-                      SessionCreate, SessionOut)
-from .security import create_image_token, current_user, require_roles, verify_image_token
+                      PanoramaAttach, SessionCreate, SessionOut)
+from .security import (create_image_token, create_panorama_token, current_user, require_roles,
+                       verify_image_token, verify_panorama_token)
 from .storage import ObjectStorage, validate_image
 from .worker import process_attendance, process_face_enrolment
 
@@ -94,10 +98,109 @@ def reprocess_faces(student_id:str,db:Session=Depends(get_db),actor:User=Depends
 def create_session(payload:SessionCreate,db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.FACULTY))):
     allowed=authorized_class_ids(db,actor)
     if not set(payload.class_ids)<=allowed:raise Problem(403,"Unassigned class","One or more selected classes are not assigned to this faculty member.")
-    faculty=faculty_for_user(db,actor);session=AttendanceSession(faculty_id=faculty.id,attendance_date=payload.attendance_date or date.today())
+    faculty=faculty_for_user(db,actor);session=AttendanceSession(faculty_id=faculty.id,attendance_date=payload.attendance_date or date.today(),capture_mode=payload.capture_mode)
     db.add(session);db.flush()
     for class_id in payload.class_ids:db.add(AttendanceSessionClass(session_id=session.id,class_id=class_id))
     audit(db,actor,"ATTENDANCE_SESSION_CREATED",session,after={"class_ids":payload.class_ids});db.commit();return session
+
+
+@router.post("/attendance/panorama/preview", status_code=201)
+async def prepare_panorama(sweep: UploadFile = File(...), captured_at: str | None = Form(default=None),
+                           db: Session = Depends(get_db), actor: User = Depends(require_roles(Role.FACULTY))):
+    """Stitch a short, silent camera sweep and return its full-resolution review image."""
+    del captured_at  # Client metadata only; the authoritative session time is server-side.
+    content = await sweep.read()
+    settings = get_settings()
+    if not content or len(content) > settings.max_panorama_video_bytes:
+        raise Problem(413, "Invalid panorama size", f"The sweep must be at most {settings.max_panorama_video_bytes} bytes.")
+    if sweep.content_type and not sweep.content_type.startswith("video/"):
+        raise Problem(415, "Unsupported panorama", "Upload a camera video sweep.")
+
+    try:
+        import cv2
+        import numpy as np
+    except ImportError as exc:
+        raise Problem(503, "Panorama unavailable", "The panorama processor is not installed on this server.") from exc
+
+    suffix = os.path.splitext(sweep.filename or "sweep.mp4")[1] or ".mp4"
+    temporary = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    temporary_path = temporary.name
+    try:
+        temporary.write(content)
+        temporary.close()
+        video = cv2.VideoCapture(temporary_path)
+        frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        if not video.isOpened() or frame_count < 3:
+            video.release()
+            raise Problem(422, "Invalid panorama sweep", "The camera sweep could not be decoded.")
+
+        # Keep neighbouring views highly overlapped. Wide jumps make even a smooth sweep
+        # unnecessarily hard to stitch, especially after mobile video compression.
+        sample_count = min(12, max(8, frame_count // 8))
+        positions = np.linspace(0, frame_count - 1, sample_count, dtype=int)
+        frames = []
+        for position in positions:
+            video.set(cv2.CAP_PROP_POS_FRAMES, int(position))
+            ok, frame = video.read()
+            if ok and frame is not None:
+                frames.append(frame)
+        video.release()
+        if len(frames) < 3:
+            raise Problem(422, "Invalid panorama sweep", "The sweep does not contain enough usable frames.")
+
+        stitcher = cv2.Stitcher_create(cv2.Stitcher_PANORAMA)
+        status, panorama = stitcher.stitch(frames)
+        if status != cv2.Stitcher_OK or panorama is None:
+            raise Problem(422, "Panorama could not be stitched", "Move more slowly and keep about one-third of the previous view visible while sweeping.")
+        encoded, jpeg = cv2.imencode(".jpg", panorama, [cv2.IMWRITE_JPEG_QUALITY, 97])
+        if not encoded:
+            raise Problem(500, "Panorama encoding failed", "The stitched panorama could not be saved.")
+        image = validate_image(jpeg.tobytes())
+    finally:
+        try:
+            os.unlink(temporary_path)
+        except OSError:
+            pass
+
+    faculty = faculty_for_user(db, actor)
+    draft = PanoramaDraft(faculty_id=faculty.id, object_key=f"pending/{uuid.uuid4()}", checksum=image.checksum,
+                          mime_type=image.mime_type, width=image.width, height=image.height)
+    db.add(draft); db.flush()
+    draft.object_key = f"panorama-drafts/{faculty.id}/{draft.id}.jpg"
+    ObjectStorage().put(draft.object_key, image)
+    db.commit()
+    token = create_panorama_token(draft.id)
+    return {"id": draft.id, "photo_uri": f"/api/v1/attendance/panorama/preview/{draft.id}/content?token={token}",
+            "width": draft.width, "height": draft.height}
+
+
+@router.get("/attendance/panorama/preview/{draft_id}/content", include_in_schema=False)
+def panorama_preview_content(draft_id: str, token: str = Query(...), db: Session = Depends(get_db)):
+    verify_panorama_token(token, draft_id)
+    draft = db.get(PanoramaDraft, draft_id)
+    if not draft:
+        raise Problem(404, "Panorama not found", "The panorama preview no longer exists.")
+    return Response(ObjectStorage().get(draft.object_key), media_type=draft.mime_type,
+                    headers={"Cache-Control": "private, no-store"})
+
+
+@router.post("/attendance/sessions/{session_id}/panorama", status_code=201)
+def attach_panorama(session_id: str, payload: PanoramaAttach, db: Session = Depends(get_db),
+                    actor: User = Depends(require_roles(Role.FACULTY))):
+    session = require_session_access(db, actor, session_id)
+    if session.scope_locked_at:
+        raise Problem(409, "Session locked", "The panorama cannot be changed after processing starts.")
+    faculty = faculty_for_user(db, actor)
+    draft = db.get(PanoramaDraft, payload.draft_id)
+    if not draft or draft.faculty_id != faculty.id:
+        raise Problem(404, "Panorama not found", "The panorama draft does not exist.")
+    row = AttendanceSessionImage(session_id=session_id, object_key=draft.object_key,
+                                 checksum=draft.checksum, mime_type=draft.mime_type,
+                                 width=draft.width, height=draft.height)
+    db.add(row); db.flush()
+    audit(db, actor, "SESSION_PANORAMA_ATTACHED", session, after={"image_id": row.id, "draft_id": draft.id})
+    db.delete(draft); db.commit()
+    return {"id": row.id, "checksum": row.checksum, "width": row.width, "height": row.height}
 
 
 @router.post("/attendance/sessions/{session_id}/images",status_code=201)

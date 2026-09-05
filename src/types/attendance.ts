@@ -156,6 +156,9 @@ export interface SessionClassRef {
 export interface AttendanceSession {
   id: Id;
 
+  /** How the classroom media was captured. Older backend responses may omit this. */
+  captureMode?: AttendanceCaptureMode;
+
   /**
    * The classes the faculty member selected before capturing.
    *
@@ -241,8 +244,27 @@ export interface CaptureAttendanceRequest {
    * that would let a face from an unrelated class enter a register it has no business in.
    */
   classIds: Id[];
-  /** Local file URIs for 1–8 overlapping classroom photographs. */
+  /** Standard photos are uploaded directly; a panorama uses its prepared draft. */
+  captureMode: AttendanceCaptureMode;
+  /** Local file URIs for 1–8 overlapping standard classroom photographs. */
   photoUris: string[];
+  /** Token returned by the panorama preview endpoint after stitching. */
+  panoramaDraftId?: Id;
+  capturedAt: IsoDateTime;
+}
+
+export type AttendanceCaptureMode = 'STANDARD' | 'PANORAMA';
+
+/** Temporary stitched panorama shown to faculty before attendance processing begins. */
+export interface PanoramaPreview {
+  id: Id;
+  photoUri: string;
+  width: number;
+  height: number;
+}
+
+export interface PreparePanoramaRequest {
+  sweepUri: string;
   capturedAt: IsoDateTime;
 }
 
@@ -257,6 +279,7 @@ export interface CaptureAttendanceRequest {
 export type ProcessingStage =
   | 'CAPTURED'
   | 'UPLOADING'
+  | 'STITCHING_PANORAMA'
   | 'DETECTING_FACES'
   | 'IDENTIFYING_STUDENTS'
   | 'MATCHING_ROSTER'

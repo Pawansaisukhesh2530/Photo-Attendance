@@ -56,6 +56,22 @@ def verify_image_token(raw: str, session_id: str, image_id: str) -> None:
         raise Problem(401, "Invalid image token", "The image link is invalid or expired.")
 
 
+def create_panorama_token(draft_id: str) -> str:
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    return jwt.encode({"draft_id": draft_id, "purpose": "panorama-preview", "iat": now, "exp": now + timedelta(minutes=20)}, settings.jwt_secret, algorithm="HS256")
+
+
+def verify_panorama_token(raw: str, draft_id: str) -> None:
+    try:
+        payload = jwt.decode(raw, get_settings().jwt_secret, algorithms=["HS256"])
+        valid = payload.get("purpose") == "panorama-preview" and payload.get("draft_id") == draft_id
+    except jwt.PyJWTError:
+        valid = False
+    if not valid:
+        raise Problem(401, "Invalid panorama token", "The panorama preview link is invalid or expired.")
+
+
 def issue_refresh_token(db: Session, user: User) -> str:
     settings = get_settings()
     raw = secrets.token_urlsafe(48)

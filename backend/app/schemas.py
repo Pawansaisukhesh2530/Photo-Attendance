@@ -142,6 +142,7 @@ class EnrolmentUpdate(BaseModel):
 class SessionCreate(BaseModel):
     class_ids: list[str] = Field(min_length=1, max_length=20)
     attendance_date: date | None = None
+    capture_mode: Literal["STANDARD", "PANORAMA"] = "STANDARD"
 
     @model_validator(mode="after")
     def unique_classes(self):
@@ -155,9 +156,14 @@ class SessionOut(BaseModel):
     id: str
     faculty_id: str
     attendance_date: date
+    capture_mode: str
     status: SessionStatus
     version: int
     finalized_at: datetime | None
+
+
+class PanoramaAttach(BaseModel):
+    draft_id: str
 
 
 class AttendanceRecordOut(BaseModel):

@@ -9,6 +9,8 @@ import type { AttendanceRecord } from '@/types';
 
 export interface ClassroomPhotoViewerProps {
   photoUri: string | null;
+  photoWidth?: number | null;
+  photoHeight?: number | null;
   records: AttendanceRecord[];
   /** Highlights one record's box, e.g. when opened from a roster row. */
   focusedRecordId?: string | null;
@@ -37,6 +39,8 @@ export interface ClassroomPhotoViewerProps {
  */
 export function ClassroomPhotoViewer({
   photoUri,
+  photoWidth,
+  photoHeight,
   records,
   focusedRecordId = null,
   onSelectRecord,
@@ -51,15 +55,19 @@ export function ClassroomPhotoViewer({
   };
 
   const withBoxes = records.filter((r) => r.faceBox !== null);
+  const sourceAspectRatio =
+    photoWidth && photoHeight && photoWidth > 0 && photoHeight > 0
+      ? photoWidth / photoHeight
+      : 4 / 3;
 
   return (
     <View style={styles.container}>
-      <View style={styles.frame} onLayout={handleLayout}>
+      <View style={[styles.frame, { aspectRatio: sourceAspectRatio }]} onLayout={handleLayout}>
         {photoUri ? (
           <Image
             source={{ uri: photoUri }}
             style={styles.image}
-            contentFit="cover"
+            contentFit="contain"
             transition={200}
             cachePolicy="memory-disk"
             accessibilityLabel="Captured classroom photograph"
