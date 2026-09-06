@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { Icon } from '@/components/primitives/Icon';
+import { Button } from '@/components/primitives/Button';
 import { Text } from '@/components/primitives/Text';
 import { palette, radius, spacing, statusColors } from '@/theme';
 import type { AttendanceRecord, DetectedFace } from '@/types';
@@ -51,6 +52,7 @@ export function ClassroomPhotoViewer({
   caption,
 }: ClassroomPhotoViewerProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
   const handleLayout = (event: LayoutChangeEvent): void => {
     const { width, height } = event.nativeEvent.layout;
@@ -96,8 +98,8 @@ export function ClassroomPhotoViewer({
         )}
 
         {/* Recognition overlays. */}
-        {showBoxes && size
-          ? visibleDetections.map((detection, index) => {
+        {showBoxes && !previewMode && size
+          ? visibleDetections.map((detection) => {
               const record = records.find((item) => item.studentId === detection.matchedStudentId);
               const box = detection.box;
               const tokens = statusColors[record?.status ?? (detection.matchStatus === 'REVIEW' ? 'REVIEW' : 'UNKNOWN')];
@@ -109,7 +111,7 @@ export function ClassroomPhotoViewer({
                   onPress={record && onSelectRecord ? () => onSelectRecord(record) : undefined}
                   disabled={!record || !onSelectRecord}
                   accessibilityRole={record && onSelectRecord ? 'button' : 'image'}
-                  accessibilityLabel={record ? `Face ${index + 1}, ${record.studentName}, ${record.status.toLowerCase()}` : `Face ${index + 1}, unmatched`}
+                  accessibilityLabel={record ? `${record.rollNumber || record.studentName}, ${record.status.toLowerCase()}` : 'Unknown face'}
                   style={[
                     styles.box,
                     {
@@ -123,18 +125,17 @@ export function ClassroomPhotoViewer({
                     },
                   ]}
                 >
-                  <View style={[styles.faceNumber, { backgroundColor: tokens.accent }]}>
-                    <Text variant="labelMd" color={palette.onPrimary}>
-                      {index + 1}
-                    </Text>
-                  </View>
-                  {isFocused && record ? (
+                  {record ? (
                     <View style={[styles.boxLabel, { backgroundColor: tokens.accent }]}>
                       <Text variant="labelMd" color={palette.onPrimary} numberOfLines={1}>
-                        {record.rollNumber}
+                        {record.rollNumber || record.studentName}
                       </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <View style={[styles.boxLabel, { backgroundColor: tokens.accent }]}>
+                      <Text variant="labelMd" color={palette.onPrimary}>Unknown face</Text>
+                    </View>
+                  )}
                 </Pressable>
               );
             })
@@ -151,6 +152,16 @@ export function ClassroomPhotoViewer({
       </View>
 
       {showBoxes ? (
+        <Button
+          label={previewMode ? 'Show detections' : 'Preview photo'}
+          icon={previewMode ? 'recognition' : 'gallery'}
+          variant="ghost"
+          size="sm"
+          onPress={() => setPreviewMode((value) => !value)}
+        />
+      ) : null}
+
+      {showBoxes && !previewMode ? (
         <View style={styles.detectedSummary}>
           <Icon name="recognition" size={18} color={palette.primary} />
           <Text variant="bodyMd" color={palette.onSurface}>
@@ -164,7 +175,7 @@ export function ClassroomPhotoViewer({
         </View>
       ) : null}
 
-      {showBoxes && visibleDetections.length > 0 ? (
+      {showBoxes && !previewMode && visibleDetections.length > 0 ? (
         <View style={styles.legend}>
           {(['PRESENT', 'REVIEW', 'UNKNOWN'] as const).map((status) => (
             <View key={status} style={styles.legendItem}>
@@ -215,22 +226,11 @@ const styles = StyleSheet.create({
   },
   boxLabel: {
     position: 'absolute',
-    top: -20,
-    left: -1,
+    top: 2,
+    left: 2,
     paddingHorizontal: spacing.xs + 1,
     paddingVertical: 1,
     borderRadius: radius.base,
-  },
-  faceNumber: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 5,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   detectedSummary: {
     flexDirection: 'row',
