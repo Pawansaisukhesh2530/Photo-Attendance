@@ -52,7 +52,8 @@ export function ClassroomPhotoViewer({
   caption,
 }: ClassroomPhotoViewerProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewScale, setPreviewScale] = useState(1);
 
   const handleLayout = (event: LayoutChangeEvent): void => {
     const { width, height } = event.nativeEvent.layout;
@@ -98,7 +99,7 @@ export function ClassroomPhotoViewer({
         )}
 
         {/* Recognition overlays. */}
-        {showBoxes && !previewMode && size
+        {showBoxes && size
           ? visibleDetections.map((detection) => {
               const record = records.find((item) => item.studentId === detection.matchedStudentId);
               const box = detection.box;
@@ -153,15 +154,15 @@ export function ClassroomPhotoViewer({
 
       {showBoxes ? (
         <Button
-          label={previewMode ? 'Show detections' : 'Preview photo'}
-          icon={previewMode ? 'recognition' : 'gallery'}
+          label="Preview photo"
+          icon="gallery"
           variant="ghost"
           size="sm"
-          onPress={() => setPreviewMode((value) => !value)}
+          onPress={() => { setPreviewScale(1); setPreviewOpen(true); }}
         />
       ) : null}
 
-      {showBoxes && !previewMode ? (
+      {showBoxes ? (
         <View style={styles.detectedSummary}>
           <Icon name="recognition" size={18} color={palette.primary} />
           <Text variant="bodyMd" color={palette.onSurface}>
@@ -174,6 +175,19 @@ export function ClassroomPhotoViewer({
           ) : null}
         </View>
       ) : null}
+      <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
+        <View style={styles.fullscreenBackdrop}>
+          <Pressable accessibilityLabel="Close photo preview" onPress={() => setPreviewOpen(false)} style={styles.fullscreenClose}>
+            <Icon name="close" size={28} color={palette.onPrimary} />
+          </Pressable>
+          {photoUri ? <Image source={{ uri: photoUri }} contentFit="contain" style={[styles.fullscreenImage, { transform: [{ scale: previewScale }] }]} /> : null}
+          <View style={styles.zoomControls}>
+            <Button label="−" variant="secondary" size="sm" onPress={() => setPreviewScale((value) => Math.max(1, value - 0.25))} />
+            <Text variant="labelMd" color={palette.onPrimary}>{Math.round(previewScale * 100)}%</Text>
+            <Button label="+" variant="secondary" size="sm" onPress={() => setPreviewScale((value) => Math.min(4, value + 0.25))} />
+          </View>
+        </View>
+      </Modal>
 
       {showBoxes && !previewMode && visibleDetections.length > 0 ? (
         <View style={styles.legend}>
@@ -261,6 +275,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
+  fullscreenBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center', alignItems: 'center' },
+  fullscreenImage: { width: '100%', height: '82%' },
+  fullscreenClose: { position: 'absolute', top: spacing.xl, right: spacing.lg, zIndex: 2, padding: spacing.sm },
+  zoomControls: { position: 'absolute', bottom: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   legendSwatch: {
     width: 12,
     height: 12,
