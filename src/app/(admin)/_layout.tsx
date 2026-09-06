@@ -101,8 +101,13 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     backgroundColor: 'transparent',
-    borderTopColor: palette.outlineVariant,
-    borderTopWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderRadius: 24,
+    marginHorizontal: spacing.sm + 2,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+    boxShadow: '0 16px 40px rgba(0,0,0,0.32)',
     paddingTop: spacing.xs,
   },
   tabItem: {

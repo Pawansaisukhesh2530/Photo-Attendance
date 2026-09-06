@@ -126,7 +126,8 @@ const styles = StyleSheet.create({
     // The Stitch mobile login uses `surface-container-lowest` for input fills. The
     // desktop screens use `surface-bright`; mobile wins, since that is the target here.
     backgroundColor: 'rgba(255,255,255,0.075)',
-    borderRadius: radius.xl,
+    borderRadius: radius.card,
+    borderCurve: 'continuous',
   },
   input: {
     flex: 1,

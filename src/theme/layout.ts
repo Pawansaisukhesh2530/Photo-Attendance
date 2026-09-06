@@ -57,7 +57,7 @@ export const shadows: Record<'none' | 'resting' | 'raised', ViewStyle> = {
       shadowOffset: { width: 0, height: 1 },
     },
     android: { elevation: 1 },
-    default: {},
+    default: { boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)' },
   })!,
   raised: Platform.select<ViewStyle>({
     ios: {
@@ -67,7 +67,7 @@ export const shadows: Record<'none' | 'resting' | 'raised', ViewStyle> = {
       shadowOffset: { width: 0, height: 8 },
     },
     android: { elevation: 6 },
-    default: {},
+    default: { boxShadow: '0 18px 48px rgba(0, 0, 0, 0.28)' },
   })!,
 };
 

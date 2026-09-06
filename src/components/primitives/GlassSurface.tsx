@@ -27,9 +27,9 @@ export function GlassSurface({
       <LinearGradient
         pointerEvents="none"
         colors={[
-          'rgba(255,255,255,0.20)',
-          'rgba(255,255,255,0.035)',
-          'rgba(119,96,255,0.10)',
+          'rgba(255,255,255,0.11)',
+          'rgba(255,255,255,0.018)',
+          'rgba(119,96,255,0.045)',
         ]}
         locations={[0, 0.46, 1]}
         start={{ x: 0, y: 0 }}
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fallback: {
-    backgroundColor: 'rgba(8, 11, 28, 0.52)',
+    backgroundColor: 'rgba(12, 16, 29, 0.60)',
   },
   specularEdge: {
     position: 'absolute',
@@ -84,6 +84,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: 'rgba(255,255,255,0.15)',
   },
 });

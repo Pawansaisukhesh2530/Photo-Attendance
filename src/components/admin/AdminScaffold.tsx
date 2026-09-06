@@ -168,6 +168,8 @@ const styles = StyleSheet.create({
   desktopRoot: {
     flex: 1,
     flexDirection: 'row',
+    gap: spacing.sm + 4,
+    padding: spacing.sm + 4,
     backgroundColor: 'transparent',
   },
   desktopMain: {
@@ -175,14 +177,19 @@ const styles = StyleSheet.create({
     // `minWidth: 0` lets the flex child shrink instead of forcing the row wider than the window,
     // which is what produces horizontal overflow on web.
     minWidth: 0,
+    gap: spacing.sm + 4,
   },
   desktopHeader: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md + 2,
     gap: spacing.sm,
     backgroundColor: 'transparent',
-    borderBottomWidth: StyleSheet.hairlineWidth * 2,
-    borderBottomColor: palette.outlineVariant,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.13)',
+    borderRadius: 20,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    boxShadow: '0 18px 50px rgba(0,0,0,0.24)',
   },
   crumbs: {
     flexDirection: 'row',
@@ -213,7 +220,7 @@ const styles = StyleSheet.create({
   desktopConstrain: {
     flex: 1,
     width: '100%',
-    maxWidth: 1280,
+    maxWidth: 1180,
     alignSelf: 'center',
     minWidth: 0,
   },

@@ -50,7 +50,6 @@ const NavItem = memo(function NavItem({
         native `selected` state and `aria-current` on the web. Colour alone would fail for anyone
         who cannot distinguish the tint.
       */}
-      <View style={[styles.rail, active && styles.railActive]} />
       <Icon name={icon} size={20} color={active ? palette.primary : palette.onSurfaceVariant} />
       <Text
         variant="bodyLg"
@@ -125,8 +124,12 @@ const styles = StyleSheet.create({
   sidebar: {
     width: ADMIN_SIDEBAR_WIDTH,
     backgroundColor: 'transparent',
-    borderRightWidth: StyleSheet.hairlineWidth * 2,
-    borderRightColor: palette.outlineVariant,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.13)',
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    boxShadow: '0 24px 70px rgba(0,0,0,0.32)',
   },
   brand: {
     flexDirection: 'row',
@@ -153,32 +156,27 @@ const styles = StyleSheet.create({
   },
   navContent: {
     paddingVertical: spacing.sm,
-    gap: 2,
+    gap: spacing.xs,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm + 2,
     minHeight: touch.comfortable,
-    paddingRight: spacing.md,
+    marginHorizontal: spacing.sm,
+    paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.sm,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   itemActive: {
-    backgroundColor: palette.primaryFixed,
+    backgroundColor: 'rgba(169,156,255,0.15)',
+    borderColor: 'rgba(190,180,255,0.22)',
   },
   itemLabel: {
     flex: 1,
-  },
-  rail: {
-    width: 3,
-    alignSelf: 'stretch',
-    borderTopRightRadius: radius.base,
-    borderBottomRightRadius: radius.base,
-    backgroundColor: 'transparent',
-    marginRight: spacing.sm + 1,
-  },
-  railActive: {
-    backgroundColor: palette.primary,
   },
   footer: {
     padding: spacing.md,

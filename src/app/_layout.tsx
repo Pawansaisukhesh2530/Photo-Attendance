@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { enableScreens } from 'react-native-screens';
@@ -93,9 +93,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <LinearGradient colors={['#040714', '#1a0d3a', '#05283b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-          <View pointerEvents="none" style={[styles.ambientOrb, styles.orbViolet]} />
-          <View pointerEvents="none" style={[styles.ambientOrb, styles.orbCyan]} />
+          <LinearGradient colors={['#05070d', '#0a0e19', '#101827']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+          <LinearGradient pointerEvents="none" colors={['rgba(113,91,255,0.20)', 'rgba(113,91,255,0)']} style={[styles.ambientOrb, styles.orbViolet]} />
+          <LinearGradient pointerEvents="none" colors={['rgba(41,172,208,0.16)', 'rgba(41,172,208,0)']} style={[styles.ambientOrb, styles.orbCyan]} />
           <ThemeProvider value={glassNavigationTheme}>
           <ToastProvider>
             {/*
@@ -138,19 +138,16 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   ambientOrb: {
     position: 'absolute',
-    width: 520,
-    height: 520,
-    borderRadius: 260,
-    opacity: 0.34,
+    width: 720,
+    height: 720,
+    borderRadius: 360,
   },
   orbViolet: {
-    top: -210,
-    right: -100,
-    backgroundColor: '#7048ff',
+    top: -430,
+    right: -220,
   },
   orbCyan: {
-    bottom: -260,
-    left: -150,
-    backgroundColor: '#00a6c8',
+    bottom: -500,
+    left: -240,
   },
 });

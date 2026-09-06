@@ -130,7 +130,7 @@ export function Button({
           paddingHorizontal: dimensions.paddingHorizontal,
           gap: dimensions.gap,
           backgroundColor: tokens.background,
-          borderRadius: pill ? radius.full : radius.lg,
+          borderRadius: pill ? radius.full : radius.card,
           borderWidth: tokens.border ? StyleSheet.hairlineWidth * 2 : 0,
           borderColor: tokens.border ?? 'transparent',
         },
@@ -175,6 +175,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    borderCurve: 'continuous',
   },
   content: {
     flexDirection: 'row',
