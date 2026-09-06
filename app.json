@@ -35,6 +35,12 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-sensors",
+        {
+          "motionPermission": "EduTrace Pro uses device motion to guide a panorama sweep across the classroom."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",

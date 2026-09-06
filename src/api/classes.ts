@@ -2,10 +2,10 @@ import type { ClassService } from '@/services/contracts';
 import type { CourseClass, TodayClass } from '@/types';
 import { request } from './client';
 
-type Raw={id:string;code:string;subject:string;department:string;semester:number;section:string;academic_session:string;archived:boolean;version:number;faculty_id?:string|null;faculty_name?:string|null;student_count?:number};
+type Raw={id:string;code:string;subject:string;department:string;semester:number;section:string;academic_session:string;archived:boolean;version:number;faculty_id?:string|null;faculty_name?:string|null;student_count?:number;attendance_percentage?:number};
 type RawPage={items:Raw[];page:number;page_size:number;total:number;has_more:boolean};
-const map=(x:Raw):CourseClass=>({id:x.id,subject:x.subject,classCode:x.code,section:x.section,displayCode:x.code,semester:x.semester,academicSession:x.academic_session,facultyId:x.faculty_id??'',facultyName:x.faculty_name??'Unassigned',studentCount:x.student_count??0,attendancePercentage:0,schedule:[],department:x.department,status:x.archived?'ARCHIVED':'ACTIVE'});
-async function rawPage(query:any={}){return request<RawPage>('classes',{query:{search:query.search,page:query.page,page_size:query.pageSize}})}
+const map=(x:Raw):CourseClass=>({id:x.id,subject:x.subject,classCode:x.code,section:x.section,displayCode:x.code,semester:x.semester,academicSession:x.academic_session,facultyId:x.faculty_id??'',facultyName:x.faculty_name??'Unassigned',studentCount:x.student_count??0,attendancePercentage:x.attendance_percentage??0,schedule:[],department:x.department,status:x.archived?'ARCHIVED':'ACTIVE'});
+async function rawPage(query:any={}){return request<RawPage>('classes',{query:{search:query.search,facultyId:query.facultyId,semester:query.semester,department:query.department,status:query.status,unassignedOnly:query.unassignedOnly,page:query.page,page_size:query.pageSize}})}
 async function getRaw(id:string){return request<Raw>(`classes/${id}`)}
 export const classesApi:ClassService={
  async getClasses(query){return (await rawPage({...query,pageSize:100})).items.map(map)},

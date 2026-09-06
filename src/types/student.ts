@@ -91,4 +91,13 @@ export interface CreateStudentRequest {
   studentId:string; rollNumber:string; name:string; department:string; semester:number; section:string;
 }
 
-export interface FaceImageInfo { id:Id; status:string; reason:string|null; imageUrl:string; revokedAt:string|null }
+export interface FaceImageInfo {
+  id: Id;
+  status: string;
+  reason: string | null;
+  imageUrl: string;
+  revokedAt: string | null;
+  width: number;
+  height: number;
+  detectedFaces: number | null;
+}

@@ -56,6 +56,7 @@ export type {
   AttendanceStatus,
   AttendanceSummary,
   CaptureAttendanceRequest,
+  DetectedFace,
   FinalizeSessionRequest,
   ProcessingProgress,
   ProcessingStage,

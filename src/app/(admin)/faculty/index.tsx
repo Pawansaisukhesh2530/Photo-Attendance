@@ -231,7 +231,7 @@ export default function AdminFacultyListScreen() {
             width={width}
             onPress={openMember}
             last={index === rows.length - 1}
-            accessibilityLabel={`${row.name}, ${row.employeeId}, ${row.department ?? 'no department'}, ${row.assignedClassIds.length} classes, ${row.status ?? 'ACTIVE'}`}
+            accessibilityLabel={`${row.name}, ${row.employeeId}, ${row.department ?? 'no department'}, ${row.assignedClassIds.length} ${row.assignedClassIds.length === 1 ? 'class' : 'classes'}, ${row.status ?? 'ACTIVE'}`}
           />
         )}
         renderCard={(row) => (
@@ -239,7 +239,7 @@ export default function AdminFacultyListScreen() {
             onPress={() => openMember(row)}
             feedback="card"
             accessibilityRole="button"
-            accessibilityLabel={`${row.name}, ${row.employeeId}, ${row.assignedClassIds.length} classes, ${row.status ?? 'ACTIVE'}`}
+            accessibilityLabel={`${row.name}, ${row.employeeId}, ${row.assignedClassIds.length} ${row.assignedClassIds.length === 1 ? 'class' : 'classes'}, ${row.status ?? 'ACTIVE'}`}
           >
             <Card>
               <View style={styles.cardTop}>

@@ -118,7 +118,7 @@ export function AdminPagedList<T>({
           <Text variant="labelMd" color={palette.onSurfaceVariant}>
             {hasNextPage
               ? `Showing ${rows.length} of ${total}`
-              : `${total} ${total === 1 ? noun.replace(/s$/, '') : noun}`}
+              : `${total} ${total === 1 ? (noun.endsWith('sses') ? noun.slice(0, -2) : noun.replace(/s$/, '')) : noun}`}
           </Text>
         </View>
       ) : null}

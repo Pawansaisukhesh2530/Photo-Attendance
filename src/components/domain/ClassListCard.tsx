@@ -57,7 +57,7 @@ export function ClassListCard({ item, onPress, onTakeAttendance }: ClassListCard
         onPress={() => onPress(item)}
         feedback="card"
         accessibilityRole="button"
-        accessibilityLabel={`${item.subject}, ${item.displayCode}, semester ${item.semester}, ${item.studentCount} students, ${item.attendancePercentage} percent attendance`}
+        accessibilityLabel={`${item.subject}, ${item.displayCode}, semester ${item.semester}, ${item.studentCount} ${item.studentCount === 1 ? 'student' : 'students'}, ${item.attendancePercentage} percent attendance`}
         accessibilityHint={`Opens class details for ${item.subject}`}
       >
         {/* Header strip — Stitch tints this `slate-50`, mapped to surface-container-low. */}
@@ -82,7 +82,7 @@ export function ClassListCard({ item, onPress, onTakeAttendance }: ClassListCard
             <View style={styles.meta}>
               <Icon name="students" size={16} color={palette.outline} />
               <Text variant="bodyMd" color={palette.onSurface}>
-                {item.studentCount} students
+                {item.studentCount} {item.studentCount === 1 ? 'student' : 'students'}
               </Text>
             </View>
             <View style={styles.meta}>

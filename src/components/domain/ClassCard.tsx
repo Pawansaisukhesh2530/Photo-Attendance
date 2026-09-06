@@ -103,7 +103,7 @@ export function ClassCard({
   const meridiem = hourNumber >= 12 ? 'PM' : 'AM';
   const displayHour = String(hourNumber % 12 === 0 ? 12 : hourNumber % 12).padStart(2, '0');
 
-  const summaryLabel = `${item.subject}, ${item.displayCode}, ${formatScheduleTime(item.startTime)}, ${item.studentCount} students, ${badge.label}`;
+  const summaryLabel = `${item.subject}, ${item.displayCode}, ${formatScheduleTime(item.startTime)}, ${item.studentCount} ${item.studentCount === 1 ? 'student' : 'students'}, ${badge.label}`;
 
   const summary = (
     <>
@@ -153,7 +153,7 @@ export function ClassCard({
         <View style={styles.meta}>
           <Icon name="students" size={16} color={palette.outline} />
           <Text variant="bodyMd" color={palette.onSurfaceVariant}>
-            {item.studentCount} students
+            {item.studentCount} {item.studentCount === 1 ? 'student' : 'students'}
           </Text>
         </View>
         <View style={styles.meta}>

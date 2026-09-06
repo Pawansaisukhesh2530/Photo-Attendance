@@ -112,6 +112,14 @@ export default function ClassDetailScreen() {
     });
   }, [classId]);
 
+  const handleTestUpload = useCallback(() => {
+    if (!classId) return;
+    router.push({
+      pathname: '/attendance/[classId]/upload',
+      params: { classId, classIds: classId },
+    });
+  }, [classId]);
+
   const handleOpenSession = useCallback((session: AttendanceSessionSummary) => {
     router.push({
       pathname: '/attendance/[classId]/results',
@@ -193,7 +201,7 @@ export default function ClassDetailScreen() {
             />
 
             <View style={styles.facts}>
-              <FactRow icon="students" label={`${totalStudents} students`} />
+              <FactRow icon="students" label={`${totalStudents} ${totalStudents === 1 ? 'student' : 'students'}`} />
               <FactRow icon="classes" label={`Semester ${course.semester} • Section ${course.section}`} />
               <FactRow icon="clock" label={scheduleLabel} />
             </View>
@@ -220,6 +228,15 @@ export default function ClassDetailScreen() {
           onPress={handleTakeAttendance}
           style={styles.primaryAction}
           accessibilityHint={`Opens the camera to capture attendance for ${course.subject}`}
+        />
+        <Button
+          label="Upload test photo"
+          icon="gallery"
+          variant="secondary"
+          fullWidth
+          onPress={handleTestUpload}
+          style={styles.testUploadAction}
+          accessibilityHint={`Chooses an existing classroom photo to test attendance for ${course.subject}`}
         />
 
         {/* Stats */}
@@ -445,6 +462,9 @@ const styles = StyleSheet.create({
   },
   primaryAction: {
     marginTop: spacing.md,
+  },
+  testUploadAction: {
+    marginTop: spacing.sm,
   },
   statCard: {
     marginTop: spacing.md,

@@ -82,6 +82,14 @@ export default function SelectClassesScreen() {
     });
   }, [selected, classId]);
 
+  const handleTestUpload = useCallback(() => {
+    if (selected.length === 0 || !classId) return;
+    router.push({
+      pathname: '/attendance/[classId]/upload',
+      params: { classId, classIds: selected.join(',') },
+    });
+  }, [selected, classId]);
+
   const header = (
     <AppHeader
       title="Select Classes"
@@ -184,7 +192,7 @@ export default function SelectClassesScreen() {
             <Text variant="bodyMd" color={palette.onSurfaceVariant}>
               {selected.length === 0
                 ? 'Select at least one class to continue'
-                : `${studentCount} students in scope`}
+                : `${studentCount} ${studentCount === 1 ? 'student' : 'students'} in scope`}
             </Text>
           </View>
 
@@ -206,6 +214,15 @@ export default function SelectClassesScreen() {
           disabled={selected.length === 0}
           onPress={handleContinue}
           accessibilityHint="Opens the camera to photograph the selected classes"
+        />
+        <Button
+          label="Upload test photo"
+          icon="gallery"
+          variant="secondary"
+          fullWidth
+          disabled={selected.length === 0}
+          onPress={handleTestUpload}
+          accessibilityHint="Chooses an existing photo and sends it through attendance processing"
         />
       </View>
     </>

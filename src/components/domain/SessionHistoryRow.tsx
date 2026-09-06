@@ -70,7 +70,7 @@ export const SessionHistoryRow = memo(function SessionHistoryRow({
             <View style={styles.flag}>
               <Icon name="classes" size={12} color={palette.primary} />
               <Text variant="labelMd" color={palette.primary}>
-                {session.classCount} classes
+                {session.classCount} {session.classCount === 1 ? 'class' : 'classes'}
               </Text>
             </View>
           ) : null}

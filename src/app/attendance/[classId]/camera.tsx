@@ -1,7 +1,8 @@
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { DeviceMotion } from 'expo-sensors';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -35,6 +36,17 @@ const SHELL = '#121218';
 const HEADER_BAND = 64;
 const CONTROL_BAND = 240;
 const PREVIEW_CONTROL_BAND = 220;
+const PANORAMA_FRAME_COUNT = 7;
+const PANORAMA_STEP_DEGREES = 20;
+const PANORAMA_SWEEP_DEGREES = (PANORAMA_FRAME_COUNT - 1) * PANORAMA_STEP_DEGREES;
+const PANORAMA_TIMEOUT_MS = 45_000;
+
+function shortestAngleDelta(current: number, previous: number): number {
+  let delta = current - previous;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  return delta;
+}
 
 /**
  * Classroom capture.
@@ -116,15 +128,33 @@ export default function CameraScreen() {
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [recordingPanorama, setRecordingPanorama] = useState(false);
+  const [panoramaSweepDegrees, setPanoramaSweepDegrees] = useState(0);
+  const [panoramaDirection, setPanoramaDirection] = useState<-1 | 1 | null>(null);
   const [submittingPanorama, setSubmittingPanorama] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panoramaSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  const panoramaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panoramaFrameUrisRef = useRef<string[]>([]);
+  const panoramaLastYawRef = useRef<number | null>(null);
+  const panoramaTravelRef = useRef(0);
+  const panoramaDirectionRef = useRef<-1 | 1 | null>(null);
+  const panoramaCaptureLockRef = useRef(false);
+
+  const stopPanoramaSensors = useCallback((): void => {
+    panoramaSubscriptionRef.current?.remove();
+    panoramaSubscriptionRef.current = null;
+    if (panoramaTimeoutRef.current) clearTimeout(panoramaTimeoutRef.current);
+    panoramaTimeoutRef.current = null;
+  }, []);
+
+  useEffect(() => stopPanoramaSensors, [stopPanoramaSensors]);
 
   const handleCameraReady = useCallback(async (): Promise<void> => {
     setCameraReady(true);
 
     // Expo's default can vary by device. Select the sensor's largest advertised still size
     // so a distant face retains as many source pixels as the phone can provide.
-    if (!cameraRef.current || captureMode !== 'STANDARD') return;
+    if (!cameraRef.current) return;
     try {
       const sizes = await cameraRef.current.getAvailablePictureSizesAsync();
       const largest = sizes.reduce<string | undefined>((best, candidate) => {
@@ -140,7 +170,7 @@ export default function CameraScreen() {
     } catch {
       // The device default is still usable when it does not expose a size list.
     }
-  }, [captureMode]);
+  }, []);
 
   /**
    * Compact scope context.
@@ -164,7 +194,7 @@ export default function CameraScreen() {
   const scopeStudentCount = selectedClasses.reduce((sum, c) => sum + c.studentCount, 0);
 
   const scopeLine =
-    selectedClasses.length > 1 ? `${scopeStudentCount} students in scope` : null;
+    selectedClasses.length > 1 ? `${scopeStudentCount} ${scopeStudentCount === 1 ? 'student' : 'students'} in scope` : null;
 
   const handleCapture = useCallback(async (): Promise<void> => {
     if (!cameraRef.current || !cameraReady || capturing) return;
@@ -195,11 +225,16 @@ export default function CameraScreen() {
   }, [cameraReady, capturing]);
 
   const handleRetake = useCallback((): void => {
-    if (captureMode === 'PANORAMA') setPanoramaPreview(null);
+    if (captureMode === 'PANORAMA') {
+      stopPanoramaSensors();
+      setPanoramaPreview(null);
+      setPanoramaSweepDegrees(0);
+      setPanoramaDirection(null);
+    }
     else setPhotos((current) => current.slice(0, -1));
     setError(null);
     setPhase('preview');
-  }, [captureMode]);
+  }, [captureMode, stopPanoramaSensors]);
 
   const handleContinue = useCallback(async (): Promise<void> => {
     const reviewUri = captureMode === 'PANORAMA' ? panoramaPreview?.photoUri : photo?.uri;
@@ -231,12 +266,14 @@ export default function CameraScreen() {
   }, [captureMode, panoramaPreview, photo, photos, classId, capture, selectedClassIds]);
 
   const handlePanoramaCapture = useCallback(async (): Promise<void> => {
-    if (!cameraRef.current || !cameraReady || !classId || submittingPanorama) return;
-
-    if (recordingPanorama) {
-      cameraRef.current.stopRecording();
+    if (
+      !cameraRef.current ||
+      !cameraReady ||
+      !classId ||
+      submittingPanorama ||
+      recordingPanorama
+    )
       return;
-    }
 
     if (Platform.OS === 'web') {
       setError('Panorama capture is available in the Android and iOS app.');
@@ -245,40 +282,109 @@ export default function CameraScreen() {
 
     setError(null);
     setRecordingPanorama(true);
+    setPanoramaSweepDegrees(0);
+    setPanoramaDirection(null);
+    panoramaFrameUrisRef.current = [];
+    panoramaLastYawRef.current = null;
+    panoramaTravelRef.current = 0;
+    panoramaDirectionRef.current = null;
+    panoramaCaptureLockRef.current = false;
 
     try {
-      const result = await cameraRef.current.recordAsync({
-        maxDuration: 12,
-        // A short 4K sweep can exceed 30 MB. Keep a safety ceiling without truncating a
-        // normal classroom sweep before the lecturer reaches the other side.
-        maxFileSize: 200 * 1024 * 1024,
+      const available = await DeviceMotion.isAvailableAsync();
+      if (!available) throw new Error('Motion sensing is not available on this device.');
+      const motionPermission = await DeviceMotion.requestPermissionsAsync();
+      if (!motionPermission.granted) throw new Error('Motion access is required for guided panorama capture.');
+
+      const captureFrame = async (): Promise<void> => {
+        if (panoramaCaptureLockRef.current || !cameraRef.current) return;
+        panoramaCaptureLockRef.current = true;
+        setCapturing(true);
+        try {
+          const frame = await cameraRef.current.takePictureAsync({
+            quality: 0.88,
+            base64: false,
+            skipProcessing: Platform.OS === 'android',
+          });
+          if (!frame?.uri) throw new Error('A panorama view could not be saved.');
+          panoramaFrameUrisRef.current.push(frame.uri);
+          const count = panoramaFrameUrisRef.current.length;
+
+          if (count >= PANORAMA_FRAME_COUNT) {
+            stopPanoramaSensors();
+            setRecordingPanorama(false);
+            setSubmittingPanorama(true);
+            try {
+              const preview = await preparePanorama.mutateAsync(panoramaFrameUrisRef.current);
+              setPanoramaPreview(preview);
+              setPhase('captured');
+            } finally {
+              setSubmittingPanorama(false);
+            }
+          }
+        } finally {
+          setCapturing(false);
+          panoramaCaptureLockRef.current = false;
+        }
+      };
+
+      DeviceMotion.setUpdateInterval(60);
+      panoramaSubscriptionRef.current = DeviceMotion.addListener((measurement) => {
+        const yawRadians = measurement.rotation?.alpha;
+        if (typeof yawRadians !== 'number') return;
+        const yaw = (yawRadians * 180) / Math.PI;
+        const previous = panoramaLastYawRef.current;
+        panoramaLastYawRef.current = yaw;
+
+        if (previous === null) {
+          void captureFrame().catch((caught: unknown) => {
+            stopPanoramaSensors();
+            setRecordingPanorama(false);
+            setError(caught instanceof Error ? caught.message : 'The panorama could not start.');
+          });
+          return;
+        }
+
+        panoramaTravelRef.current += shortestAngleDelta(yaw, previous);
+        if (!panoramaDirectionRef.current && Math.abs(panoramaTravelRef.current) >= 4) {
+          panoramaDirectionRef.current = panoramaTravelRef.current < 0 ? -1 : 1;
+          setPanoramaDirection(panoramaDirectionRef.current);
+        }
+        const direction = panoramaDirectionRef.current;
+        if (!direction) return;
+        const progress = Math.max(0, panoramaTravelRef.current * direction);
+        setPanoramaSweepDegrees(Math.min(PANORAMA_SWEEP_DEGREES, Math.round(progress)));
+        const nextTarget = panoramaFrameUrisRef.current.length * PANORAMA_STEP_DEGREES;
+        if (progress >= nextTarget && panoramaFrameUrisRef.current.length < PANORAMA_FRAME_COUNT) {
+          void captureFrame().catch((caught: unknown) => {
+            stopPanoramaSensors();
+            setRecordingPanorama(false);
+            setError(caught instanceof Error ? caught.message : 'A panorama view could not be saved.');
+          });
+        }
       });
 
-      if (!result?.uri) {
-        setError('The panorama sweep could not be saved. Please try again.');
-        return;
-      }
-
-      setSubmittingPanorama(true);
-      const preview = await preparePanorama.mutateAsync(result.uri);
-      setPanoramaPreview(preview);
-      setPhase('captured');
+      panoramaTimeoutRef.current = setTimeout(() => {
+        stopPanoramaSensors();
+        setRecordingPanorama(false);
+        setError('The panorama sweep timed out. Retake it and rotate steadily in one direction.');
+      }, PANORAMA_TIMEOUT_MS);
     } catch (caught) {
-      setError(
-        isApiError(caught)
-          ? caught.message
-          : 'The panorama sweep could not be uploaded. Please try again.',
-      );
-    } finally {
+      stopPanoramaSensors();
       setRecordingPanorama(false);
-      setSubmittingPanorama(false);
+      setError(
+        isApiError(caught) || caught instanceof Error
+          ? caught.message
+          : 'The panorama sweep could not start. Please try again.',
+      );
     }
   }, [
     cameraReady,
     classId,
     preparePanorama,
-    recordingPanorama,
     submittingPanorama,
+    recordingPanorama,
+    stopPanoramaSensors,
   ]);
 
   /* ================================================================ *
@@ -529,10 +635,8 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
-        mode={captureMode === 'PANORAMA' ? 'video' : 'picture'}
-        pictureSize={captureMode === 'STANDARD' ? pictureSize : undefined}
-        mute
-        videoQuality="2160p"
+        mode="picture"
+        pictureSize={pictureSize}
         onCameraReady={() => void handleCameraReady()}
         onMountError={() =>
           setError('The camera is unavailable on this device. Try restarting the app.')
@@ -613,7 +717,9 @@ export default function CameraScreen() {
           <View style={styles.livePill}>
             <View style={[styles.liveDot, recordingPanorama && styles.recordingDot]} />
             <Text variant="labelMd" color={palette.onSurface}>
-              {recordingPanorama ? 'Recording sweep' : 'Live'}
+              {recordingPanorama
+                ? `${panoramaSweepDegrees}° / ${PANORAMA_SWEEP_DEGREES}°`
+                : 'Live'}
             </Text>
           </View>
         ) : null}
@@ -667,15 +773,15 @@ export default function CameraScreen() {
               <Text variant="bodyMd" color={palette.onPrimaryContainer}>
                 {captureMode === 'PANORAMA'
                   ? recordingPanorama
-                    ? 'Move slowly from left to right, keeping every row in view.'
-                    : 'Start at the left side of the room, then capture one smooth sweep.'
+                    ? `Continue turning ${panoramaDirection === -1 ? 'left' : panoramaDirection === 1 ? 'right' : 'in either direction'} until the guide reaches the end.`
+                    : 'Start at one side, tap once, then rotate slowly across the classroom.'
                   : 'Position the camera so that as many students as possible are visible.'}
               </Text>
               <Text variant="labelMd" color={palette.onPrimaryContainer}>
                 {captureMode === 'PANORAMA'
                   ? recordingPanorama
-                    ? 'Tap stop after reaching the right side. Maximum 12 seconds.'
-                    : 'Hold the phone sideways and keep it level while moving.'
+                    ? 'Keep the phone level and turn from one spot. The camera records the panorama automatically.'
+                    : `Hold the phone sideways and make one smooth ${PANORAMA_SWEEP_DEGREES}° sweep.`
                   : 'Hold steady, keep the whole room in frame, and avoid steep angles.'}
               </Text>
             </View>
@@ -687,42 +793,37 @@ export default function CameraScreen() {
             onPress={() =>
               void (captureMode === 'PANORAMA' ? handlePanoramaCapture() : handleCapture())
             }
-            disabled={!cameraReady || capturing || submittingPanorama}
+            disabled={!cameraReady || capturing || recordingPanorama || submittingPanorama}
             feedback="scale"
             accessibilityRole="button"
             accessibilityLabel={
               captureMode === 'PANORAMA'
-                ? recordingPanorama
-                  ? 'Finish panorama sweep'
-                  : 'Start panorama sweep'
+                ? 'Start guided panorama sweep'
                 : 'Capture classroom photo'
             }
             accessibilityHint={
               captureMode === 'PANORAMA'
-                ? 'Records one silent sweep for the classroom panorama'
+                ? `Guides one continuous ${PANORAMA_SWEEP_DEGREES} degree sweep and creates one panorama image`
                 : 'Takes one photograph of the classroom'
             }
             accessibilityState={{
-              disabled: !cameraReady || capturing || submittingPanorama,
+              disabled: !cameraReady || capturing || recordingPanorama || submittingPanorama,
             }}
             style={[
               styles.shutterRing,
-              (!cameraReady || capturing || submittingPanorama) && styles.shutterDisabled,
+              (!cameraReady || capturing || recordingPanorama || submittingPanorama) &&
+                styles.shutterDisabled,
             ]}
           >
             <View
               style={[styles.shutterCore, recordingPanorama && styles.shutterCoreRecording]}
             >
-              {capturing || submittingPanorama ? (
+              {capturing || recordingPanorama || submittingPanorama ? (
                 <ActivityIndicator color={palette.onPrimary} />
               ) : (
                 <Icon
                   name={
-                    captureMode === 'PANORAMA'
-                      ? recordingPanorama
-                        ? 'stop'
-                        : 'panorama'
-                      : 'camera'
+                    captureMode === 'PANORAMA' ? 'panorama' : 'camera'
                   }
                   size={32}
                   color={palette.onPrimary}
@@ -737,8 +838,8 @@ export default function CameraScreen() {
             ? 'Uploading panorama sweep…'
             : captureMode === 'PANORAMA'
               ? recordingPanorama
-                ? 'Pan slowly · tap stop when the room is covered'
-                : 'One sweep captures the whole classroom'
+                ? `Pan slowly · ${Math.round((panoramaSweepDegrees / PANORAMA_SWEEP_DEGREES) * 100)}% complete`
+                : 'One guided sweep creates one panorama image'
               : photos.length === 0
                 ? 'Take 3–4 overlapping angles for a large classroom'
                 : `${photos.length} of 8 photos captured`}

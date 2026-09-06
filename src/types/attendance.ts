@@ -121,6 +121,8 @@ export interface AttendanceSummary {
   unknown: number;
   /** Faces the backend matched to a roster entry, for the "46/48" readout. */
   recognized: number;
+  /** Every face located in the classroom image, including people outside the roster. */
+  detectedFaces: number;
   /**
    * Faces detected in the photo that matched nobody in the candidate pool.
    *
@@ -136,6 +138,15 @@ export interface AttendanceSummary {
   unmatchedFaces: number;
   /** Percentage 0..100, derived; present for display convenience. */
   percentage: number;
+}
+
+export interface DetectedFace {
+  id: Id;
+  imageId: Id;
+  box: BoundingBox;
+  confidence: number;
+  matchStatus: 'MATCHED' | 'REVIEW' | 'UNMATCHED';
+  matchedStudentId: Id | null;
 }
 
 /**
@@ -194,6 +205,8 @@ export interface AttendanceSession {
   photoHeight: number | null;
   summary: AttendanceSummary;
   records: AttendanceRecord[];
+  /** All detector output, including faces that could not be matched to a roster student. */
+  detections: DetectedFace[];
   twinReviews: TwinReview[];
   /** Non-fatal warnings, e.g. poor lighting or no faces found. */
   warnings: ProcessingWarning[];
@@ -264,7 +277,8 @@ export interface PanoramaPreview {
 }
 
 export interface PreparePanoramaRequest {
-  sweepUri: string;
+  /** Overlapping still frames captured automatically during one guided sweep. */
+  frameUris: string[];
   capturedAt: IsoDateTime;
 }
 

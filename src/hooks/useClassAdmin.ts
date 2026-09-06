@@ -54,6 +54,7 @@ function useClassInvalidation() {
   return () => {
     void client.invalidateQueries({ queryKey: queryKeys.classes.all });
     void client.invalidateQueries({ queryKey: queryKeys.faculty.all });
+    void client.invalidateQueries({ queryKey: queryKeys.students.all });
     void client.invalidateQueries({ queryKey: queryKeys.reports.all });
     void client.invalidateQueries({ queryKey: queryKeys.audit.all });
   };

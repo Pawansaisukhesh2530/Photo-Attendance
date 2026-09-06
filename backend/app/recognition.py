@@ -6,15 +6,37 @@ layout and fails closed if a supplied model has an unsupported signature.
 """
 from dataclasses import dataclass
 from functools import lru_cache
+import io
 from pathlib import Path
 
 import numpy as np
+from PIL import Image, ImageOps
+
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:
+    pass
 
 from .config import get_settings
 
 
 class ModelUnavailable(RuntimeError):
     pass
+
+
+def decode_image(content: bytes, cv2):
+    """Decode JPEG/PNG through OpenCV and fall back to Pillow for HEIC phone uploads."""
+    image = cv2.imdecode(np.frombuffer(content, np.uint8), cv2.IMREAD_COLOR)
+    if image is not None:
+        return image
+    try:
+        with Image.open(io.BytesIO(content)) as source:
+            rgb = np.asarray(ImageOps.exif_transpose(source).convert("RGB"))
+    except Exception as exc:
+        raise ValueError("Image decoding failed") from exc
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
 
 @lru_cache(maxsize=1)
@@ -142,8 +164,7 @@ class OnnxFaceEngine:
         return normalize(self.embedder.run(None,{self.emb_input:blob})[0])
 
     def analyse(self,content:bytes):
-        image=self.cv2.imdecode(np.frombuffer(content,np.uint8),self.cv2.IMREAD_COLOR)
-        if image is None:raise ValueError("Image decoding failed")
+        image=decode_image(content,self.cv2)
         result=[]
         for box,points in self.detect(image):
             x1,y1,x2,y2=[int(max(0,v)) for v in box[:4]];crop=image[y1:y2,x1:x2]
@@ -166,11 +187,18 @@ class OpenCvFaceEngine:
         self.recognizer=cv2.FaceRecognizerSF.create(str(embedder),"")
 
     def analyse(self,content:bytes):
-        cv2=self.cv2; image=cv2.imdecode(np.frombuffer(content,np.uint8),cv2.IMREAD_COLOR)
-        if image is None:raise ValueError("Image decoding failed")
-        h,w=image.shape[:2]; self.detector.setInputSize((w,h)); _,faces=self.detector.detect(image)
+        cv2=self.cv2; image=decode_image(content,cv2)
+        h,w=image.shape[:2]
+        # YuNet becomes unreliable and memory-heavy when a full-resolution phone photo is used as
+        # its network input. Detect on a bounded copy, then scale boxes and landmarks back to the
+        # original image so SFace still receives the highest-quality crop.
+        scale=min(1.0,2048/max(h,w)); detection_image=image
+        if scale<1.0:detection_image=cv2.resize(image,(max(1,int(w*scale)),max(1,int(h*scale))))
+        dh,dw=detection_image.shape[:2];self.detector.setInputSize((dw,dh));_,faces=self.detector.detect(detection_image)
         result=[]
         for face in ([] if faces is None else faces):
+            face=face.copy()
+            if scale<1.0:face[:14]/=scale
             x,y,bw,bh=[float(v) for v in face[:4]]; landmarks=np.asarray(face[4:14],dtype=np.float32).reshape(5,2)
             aligned=self.recognizer.alignCrop(image,face); raw=self.recognizer.feature(aligned).reshape(-1)
             # SFace produces 128 values; zero-padding preserves cosine scores in the 512-vector schema.

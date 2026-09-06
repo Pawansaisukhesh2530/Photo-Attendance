@@ -262,7 +262,7 @@ export default function AdminClassesScreen() {
             width={width}
             onPress={openClass}
             last={index === rows.length - 1}
-            accessibilityLabel={`${row.subject}, ${row.displayCode}, ${row.facultyName || 'unassigned'}, ${row.studentCount} students, ${row.attendancePercentage} percent`}
+            accessibilityLabel={`${row.subject}, ${row.displayCode}, ${row.facultyName || 'unassigned'}, ${row.studentCount} ${row.studentCount === 1 ? 'student' : 'students'}, ${row.attendancePercentage} percent`}
           />
         )}
         renderCard={(row) => (
@@ -270,7 +270,7 @@ export default function AdminClassesScreen() {
             onPress={() => openClass(row)}
             feedback="card"
             accessibilityRole="button"
-            accessibilityLabel={`${row.subject}, ${row.displayCode}, ${row.facultyName || 'unassigned'}, ${row.studentCount} students`}
+            accessibilityLabel={`${row.subject}, ${row.displayCode}, ${row.facultyName || 'unassigned'}, ${row.studentCount} ${row.studentCount === 1 ? 'student' : 'students'}`}
           >
             <Card>
               <View style={styles.cardTop}>
@@ -299,7 +299,7 @@ export default function AdminClassesScreen() {
                   />
                 )}
                 <Badge label={`Sem ${row.semester}`} icon="calendar" />
-                <Badge label={`${row.studentCount} students`} icon="students" />
+                <Badge label={`${row.studentCount} ${row.studentCount === 1 ? 'student' : 'students'}`} icon="students" />
               </View>
 
               <View style={styles.cardBar}>

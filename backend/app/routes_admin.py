@@ -1,5 +1,7 @@
+from datetime import date, datetime, time, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -7,7 +9,7 @@ from .db import get_db
 from .domain import audit, authorized_class_ids, ensure_version, page
 from .errors import Problem
 from .models import (AttendanceRecord,AttendanceSession,AttendanceSessionClass,AttendanceStatus,AuditEntry, CourseClass, Enrolment, Faculty, FacultyClassAssignment,
-                     InstitutionSettings, Role, SessionStatus, Student, StudentFaceImage, User)
+                     FacultyStatus, InstitutionSettings, Role, SessionStatus, Student, StudentFaceEmbedding, StudentFaceImage, User)
 from .config import get_settings
 from .schemas import (AssignmentRequest, ClassIn, ClassOut, ClassPatch, EnrolmentUpdate,
                       FacultyIn, FacultyOut, FacultyPatch, Page, SettingsOut, SettingsPatch,
@@ -25,11 +27,16 @@ def class_json(db:Session,item:CourseClass):
     assignment=db.scalar(select(FacultyClassAssignment).where(FacultyClassAssignment.class_id==item.id))
     member=db.get(Faculty,assignment.faculty_id) if assignment else None
     count=db.scalar(select(func.count()).select_from(Enrolment).where(Enrolment.class_id==item.id)) or 0
-    return {"id":item.id,"code":item.code,"subject":item.subject,"department":item.department,"semester":item.semester,"section":item.section,"academic_session":item.academic_session,"archived":item.archived,"version":item.version,"faculty_id":member.id if member else None,"faculty_name":member.name if member else None,"student_count":count}
+    attendance=db.execute(select(AttendanceRecord.status).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id)
+                          .join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id)
+                          .where(AttendanceSessionClass.class_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED,
+                                 AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT]))).scalars().all()
+    attendance_percentage=round(100*sum(value==AttendanceStatus.PRESENT for value in attendance)/len(attendance),2) if attendance else 0
+    return {"id":item.id,"code":item.code,"subject":item.subject,"department":item.department,"semester":item.semester,"section":item.section,"academic_session":item.academic_session,"archived":item.archived,"version":item.version,"faculty_id":member.id if member else None,"faculty_name":member.name if member else None,"student_count":count,"attendance_percentage":attendance_percentage}
 
 def student_json(db:Session,item:Student,profile=False):
     class_ids=list(db.scalars(select(Enrolment.class_id).where(Enrolment.student_id==item.id)))
-    face_count=db.scalar(select(func.count()).select_from(StudentFaceImage).where(StudentFaceImage.student_id==item.id,StudentFaceImage.revoked_at.is_(None))) or 0
+    face_count=db.scalar(select(func.count()).select_from(StudentFaceEmbedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==item.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))) or 0
     rows=db.execute(select(AttendanceRecord.status,AttendanceSession.attendance_date,AttendanceSession.id,AttendanceSessionClass.class_id,CourseClass.subject).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id).join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id).join(CourseClass,CourseClass.id==AttendanceSessionClass.class_id).where(AttendanceRecord.student_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED).order_by(AttendanceSession.attendance_date.desc())).all()
     determined=[r for r in rows if r.status in {AttendanceStatus.PRESENT,AttendanceStatus.ABSENT}];overall=round(100*sum(r.status==AttendanceStatus.PRESENT for r in determined)/len(determined),2) if determined else 0
     result={"id":item.id,"studentId":item.student_id,"rollNumber":item.roll_number,"name":item.name,"avatarUrl":None,"department":item.department,"semester":item.semester,"section":item.section,"overallAttendance":overall,"faceEnrolled":face_count>=get_settings().min_enrolment_images,"twinGroupId":None,"primaryClassId":class_ids[0] if class_ids else "","version":item.version}
@@ -61,10 +68,14 @@ def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: Use
 
 
 @router.get("/faculty")
-def list_faculty(search: str | None = None, page_number: int = Query(1, alias="page"), page_size: int = 25,
+def list_faculty(search: str | None = None, department:str|None=None,status:FacultyStatus|None=None,
+                 class_id:str|None=Query(None,alias="classId"),page_number: int = Query(1, alias="page"), page_size: int = 25,
                  db: Session = Depends(get_db), _: User = Depends(admin)):
     q = select(Faculty).order_by(Faculty.name)
     if search: q = q.where(or_(Faculty.name.ilike(f"%{search}%"), Faculty.employee_id.ilike(f"%{search}%")))
+    if department:q=q.where(Faculty.department==department)
+    if status:q=q.where(Faculty.status==status)
+    if class_id:q=q.join(FacultyClassAssignment,FacultyClassAssignment.faculty_id==Faculty.id).where(FacultyClassAssignment.class_id==class_id)
     items,total,p,s = page(q,db,page_number,page_size); return {"items":[faculty_json(db,x) for x in items],"page":p,"pageSize":s,"total":total,"hasMore":p*s<total}
 
 
@@ -96,15 +107,23 @@ def create_student(payload:StudentIn,db:Session=Depends(get_db),actor:User=Depen
 
 
 @router.get("/students")
-def list_students(search:str|None=None,department:str|None=None,semester:int|None=None,class_id:str|None=Query(None,alias="classId"),page_number:int=Query(1,alias="page"),page_size:int=25,
+def list_students(search:str|None=None,department:str|None=None,semester:int|None=None,class_id:str|None=Query(None,alias="classId"),
+                  low_attendance_only:bool=Query(False,alias="lowAttendanceOnly"),page_number:int=Query(1,alias="page"),page_size:int=25,
                   db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
     q=select(Student).order_by(Student.name)
-    if actor.role == Role.FACULTY:
-        q=q.join(Enrolment,Enrolment.student_id==Student.id).where(Enrolment.class_id.in_(authorized_class_ids(db,actor))).distinct()
-    if class_id:q=q.join(Enrolment,Enrolment.student_id==Student.id).where(Enrolment.class_id==class_id)
+    if actor.role == Role.FACULTY or class_id:q=q.join(Enrolment,Enrolment.student_id==Student.id)
+    if actor.role == Role.FACULTY:q=q.where(Enrolment.class_id.in_(authorized_class_ids(db,actor))).distinct()
+    if class_id:q=q.where(Enrolment.class_id==class_id)
     if search:q=q.where(or_(Student.name.ilike(f"%{search}%"),Student.student_id.ilike(f"%{search}%"),Student.roll_number.ilike(f"%{search}%")))
     if department:q=q.where(Student.department==department)
     if semester:q=q.where(Student.semester==semester)
+    if low_attendance_only:
+        threshold_row=db.get(InstitutionSettings,1);threshold=threshold_row.attendance_threshold if threshold_row else 75
+        low_query=(select(AttendanceRecord.student_id).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id)
+                   .where(AttendanceSession.status==SessionStatus.FINALIZED,AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT])))
+        if actor.role==Role.FACULTY:low_query=low_query.where(AttendanceSession.faculty_id==db.scalar(select(Faculty.id).where(Faculty.user_id==actor.id)))
+        low_query=low_query.group_by(AttendanceRecord.student_id).having(100*func.sum(case((AttendanceRecord.status==AttendanceStatus.PRESENT,1),else_=0))/func.count()<threshold)
+        q=q.where(Student.id.in_(low_query))
     items,total,p,s=page(q,db,page_number,page_size);return {"items":[student_json(db,x) for x in items],"page":p,"pageSize":s,"total":total,"hasMore":p*s<total}
 
 
@@ -132,10 +151,17 @@ def create_class(payload:ClassIn,db:Session=Depends(get_db),actor:User=Depends(a
 
 
 @router.get("/classes")
-def list_classes(search:str|None=None,page_number:int=Query(1,alias="page"),page_size:int=25,db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
+def list_classes(search:str|None=None,faculty_id:str|None=Query(None,alias="facultyId"),semester:int|None=None,
+                 department:str|None=None,status:str|None=None,unassigned_only:bool=Query(False,alias="unassignedOnly"),
+                 page_number:int=Query(1,alias="page"),page_size:int=25,db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
     q=select(CourseClass).order_by(CourseClass.code)
     if actor.role == Role.FACULTY:q=q.where(CourseClass.id.in_(authorized_class_ids(db,actor)))
     if search:q=q.where(or_(CourseClass.code.ilike(f"%{search}%"),CourseClass.subject.ilike(f"%{search}%")))
+    if faculty_id:q=q.join(FacultyClassAssignment,FacultyClassAssignment.class_id==CourseClass.id).where(FacultyClassAssignment.faculty_id==faculty_id)
+    if semester is not None:q=q.where(CourseClass.semester==semester)
+    if department:q=q.where(CourseClass.department==department)
+    if status in {"ACTIVE","ARCHIVED"}:q=q.where(CourseClass.archived==(status=="ARCHIVED"))
+    if unassigned_only:q=q.where(~select(FacultyClassAssignment.id).where(FacultyClassAssignment.class_id==CourseClass.id).exists())
     items,total,p,s=page(q,db,page_number,page_size);return {"items":[class_json(db,x) for x in items],"page":p,"page_size":s,"total":total,"has_more":p*s<total}
 
 
@@ -209,7 +235,24 @@ def patch_settings(payload:SettingsPatch,db:Session=Depends(get_db),actor:User=D
 
 
 @router.get("/audit",response_model=Page[dict])
-def list_audit(page_number:int=Query(1,alias="page"),page_size:int=25,db:Session=Depends(get_db),_:User=Depends(admin)):
-    q=select(AuditEntry).order_by(AuditEntry.created_at.desc());items,total,p,s=page(q,db,page_number,page_size)
-    data=[{"id":x.id,"action":x.action,"entity_type":x.entity_type,"entity_id":x.entity_id,"before":x.before,"after":x.after,"reason":x.reason,"created_at":x.created_at} for x in items]
+def list_audit(session_id:str|None=Query(None,alias="sessionId"),student_id:str|None=Query(None,alias="studentId"),
+               actor_id:str|None=Query(None,alias="actorId"),action:str|None=None,entity_type:str|None=Query(None,alias="entityType"),
+               from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),search:str|None=None,
+               page_number:int=Query(1,alias="page"),page_size:int=25,db:Session=Depends(get_db),_:User=Depends(admin)):
+    q=select(AuditEntry).order_by(AuditEntry.created_at.desc())
+    if session_id:q=q.where(AuditEntry.entity_id==session_id)
+    if student_id:q=q.where(AuditEntry.entity_id==student_id)
+    if actor_id:q=q.where(AuditEntry.actor_id==actor_id)
+    if action:q=q.where(AuditEntry.action==action)
+    if entity_type:q=q.where(func.lower(AuditEntry.entity_type)==entity_type.lower())
+    if from_date:q=q.where(AuditEntry.created_at>=datetime.combine(from_date,time.min))
+    if to_date:q=q.where(AuditEntry.created_at<datetime.combine(to_date+timedelta(days=1),time.min))
+    if search:q=q.where(or_(AuditEntry.action.ilike(f"%{search}%"),AuditEntry.entity_type.ilike(f"%{search}%"),AuditEntry.entity_id.ilike(f"%{search}%"),AuditEntry.reason.ilike(f"%{search}%")))
+    items,total,p,s=page(q,db,page_number,page_size)
+    data=[]
+    for x in items:
+        user=db.get(User,x.actor_id);member=db.scalar(select(Faculty).where(Faculty.user_id==x.actor_id)) if user and user.role==Role.FACULTY else None
+        data.append({"id":x.id,"action":x.action,"entity_type":x.entity_type,"entity_id":x.entity_id,"before":x.before,"after":x.after,
+                     "reason":x.reason,"created_at":x.created_at,"actor_id":x.actor_id,
+                     "actor_name":member.name if member else (user.email if user else "System"),"actor_role":user.role.value if user else "System"})
     return Page(items=data,page=p,page_size=s,total=total,has_more=p*s<total)

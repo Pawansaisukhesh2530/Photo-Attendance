@@ -35,6 +35,7 @@ export function summariseRecords(records: AttendanceRecord[]): AttendanceSummary
     review,
     unknown,
     recognized,
+    detectedFaces: records.filter((r) => r.faceBox !== null).length,
     unmatchedFaces: 0,
     percentage: total === 0 ? 0 : Math.round((present / total) * 100),
   };

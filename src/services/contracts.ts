@@ -164,7 +164,7 @@ export interface StudentService {
 }
 
 export interface AttendanceService {
-  /** Uploads and stitches a silent camera sweep without creating attendance yet. */
+  /** Uploads and stitches overlapping sweep photos without creating attendance yet. */
   preparePanorama(request: PreparePanoramaRequest): Promise<PanoramaPreview>;
 
   /**

@@ -1,5 +1,8 @@
 import { API_BASE_URL, API_TIMEOUT_MS, UPLOAD_TIMEOUT_MS } from '@/constants/config';
 import type { ApiError, ApiErrorKind } from '@/types';
+import { fetch as expoFetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 /**
  * The single HTTP boundary of the application.
@@ -161,6 +164,28 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.toString();
 }
 
+function appendFilePart(
+  form: FormData,
+  fieldName: string,
+  uri: string,
+  name: string,
+  type: string,
+): void {
+  if (Platform.OS === 'web') {
+    form.append(fieldName, { uri, name, type } as unknown as Blob);
+    return;
+  }
+
+  const file = new File(uri);
+  if (!file.exists || file.size === 0) {
+    throw makeError(
+      'UPLOAD_INTERRUPTED',
+      'The captured photo is no longer available. Please retake it.',
+    );
+  }
+  form.append(fieldName, file, name);
+}
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {
     method = 'GET',
@@ -253,19 +278,14 @@ export async function uploadAttendanceMedia<T>(
 
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
-  // React Native's FormData accepts this shape for file parts.
-  form.append(media.fieldName, {
-    uri: mediaUri,
-    name: media.name,
-    type: media.type,
-  } as unknown as Blob);
+  appendFilePart(form, media.fieldName, mediaUri, media.name, media.type);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('timeout'), UPLOAD_TIMEOUT_MS);
   const token = getAccessToken();
 
   try {
-    const response = await fetch(buildUrl(path), {
+    const response = await expoFetch(buildUrl(path), {
       method: 'POST',
       body: form,
       signal: controller.signal,
@@ -278,12 +298,27 @@ export async function uploadAttendanceMedia<T>(
     if (!response.ok) {
       const kind = errorKindForStatus(response.status);
       if (kind === 'UNAUTHORIZED') onUnauthorized();
-      throw makeError(kind, messageForKind(kind), { status: response.status });
+      let serverMessage: string | undefined;
+      let fieldErrors: Record<string, string> | undefined;
+      try {
+        const parsed = parseErrorPayload(await response.json());
+        serverMessage = parsed.message;
+        fieldErrors = parsed.fieldErrors;
+      } catch {
+        // The response is not JSON; use the standard message for its status.
+      }
+      throw makeError(kind, serverMessage ?? messageForKind(kind), {
+        status: response.status,
+        ...(fieldErrors ? { fieldErrors } : {}),
+      });
     }
 
     return (await response.json()) as T;
   } catch (error) {
     if (isApiError(error)) throw error;
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw makeError('TIMEOUT', 'The panorama upload took too long. Try a shorter sweep.');
+    }
     throw makeError('UPLOAD_INTERRUPTED', messageForKind('UPLOAD_INTERRUPTED'));
   } finally {
     clearTimeout(timeoutId);
@@ -292,10 +327,21 @@ export async function uploadAttendanceMedia<T>(
 
 export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='files'):Promise<T> {
   const form=new FormData();
-  fileUris.forEach((uri,index)=>form.append(fieldName,{uri,name:`image-${index+1}.jpg`,type:'image/jpeg'} as unknown as Blob));
-  const response=await fetch(buildUrl(path),{method:'POST',body:form,headers:{Accept:'application/json',...(getAccessToken()?{Authorization:`Bearer ${getAccessToken()}`}:{})}});
-  if(!response.ok){let detail='Upload failed.';try{detail=parseErrorPayload(await response.json()).message??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
-  return response.json() as Promise<T>;
+  fileUris.forEach((uri,index)=>appendFilePart(form,fieldName,uri,`image-${index+1}.jpg`,'image/jpeg'));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort('timeout'), UPLOAD_TIMEOUT_MS);
+  try {
+    const token = getAccessToken();
+    const response=await expoFetch(buildUrl(path),{method:'POST',body:form,signal:controller.signal,headers:{Accept:'application/json',...(token?{Authorization:`Bearer ${token}`}:{})}});
+    if(!response.ok){let detail='Upload failed.';try{detail=parseErrorPayload(await response.json()).message??detail}catch{}throw makeError(errorKindForStatus(response.status),detail,{status:response.status})}
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (isApiError(error)) throw error;
+    if (error instanceof Error && error.name === 'AbortError') throw makeError('TIMEOUT', messageForKind('TIMEOUT'));
+    throw makeError('UPLOAD_INTERRUPTED', messageForKind('UPLOAD_INTERRUPTED'));
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function downloadFile(path: string): Promise<void> {

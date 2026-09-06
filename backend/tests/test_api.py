@@ -6,7 +6,7 @@ from app.db import SessionLocal
 from app.domain import build_safe_unknown_records, candidate_student_ids
 from app.models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass,
                         AttendanceStatus, CourseClass, Enrolment, FacultyClassAssignment,
-                        PanoramaDraft, SessionStatus, Student)
+                        PanoramaDraft, SessionStatus, Student, TwinReview)
 from tests.conftest import auth
 import numpy as np
 from app.recognition import decide_match
@@ -208,3 +208,89 @@ def test_panorama_sweep_is_stitched_and_previewed(client, identities):
     assert preview["width"]>640 and preview["height"]>200
     image=client.get(preview["photo_uri"])
     assert image.status_code==200 and image.headers["content-type"]=="image/jpeg"
+
+
+def test_panorama_still_frames_are_stitched_and_previewed(client, identities):
+    import cv2
+    rng=np.random.default_rng(84)
+    canvas=rng.integers(0,256,size=(320,1600,3),dtype=np.uint8)
+    for x in range(80,1520,160):
+        cv2.circle(canvas,(x,160),35,(255,255,255),5)
+        cv2.putText(canvas,str(x),(x-35,250),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,0),3)
+    files=[]
+    for index,x in enumerate(np.linspace(0,960,6,dtype=int)):
+        encoded,jpeg=cv2.imencode(".jpg",canvas[:,x:x+640],[cv2.IMWRITE_JPEG_QUALITY,92])
+        assert encoded
+        files.append(("frames",(f"frame-{index}.jpg",jpeg.tobytes(),"image/jpeg")))
+    response=client.post("/api/v1/attendance/panorama/frames",headers=auth(identities["faculty_token"]),files=files)
+    assert response.status_code==201,response.text
+    preview=response.json()
+    assert preview["width"]>640 and preview["height"]>200
+    image=client.get(preview["photo_uri"])
+    assert image.status_code==200 and image.headers["content-type"]=="image/jpeg"
+
+
+def test_panorama_still_frames_require_at_least_four_images(client, identities):
+    files=[("frames",(f"frame-{index}.png",_png((40+index,80,120)),"image/png")) for index in range(3)]
+    response=client.post("/api/v1/attendance/panorama/frames",headers=auth(identities["faculty_token"]),files=files)
+    assert response.status_code==422
+
+
+def test_reports_return_real_aggregates_and_honor_scope(client, identities):
+    assigned,_,selected,_=setup_class_scope(identities)
+    with SessionLocal.begin() as db:
+        absent=Student(student_id="S003",roll_number="R003",name="Absent Student",department="CSE",semester=5,section="A")
+        db.add(absent);db.flush();db.add(Enrolment(student_id=absent.id,class_id=assigned))
+        session=AttendanceSession(faculty_id=identities["faculty_id"],attendance_date=date.today(),status=SessionStatus.FINALIZED)
+        db.add(session);db.flush();db.add(AttendanceSessionClass(session_id=session.id,class_id=assigned))
+        db.add_all([
+            AttendanceRecord(session_id=session.id,student_id=selected,ai_status=AttendanceStatus.PRESENT,status=AttendanceStatus.PRESENT,model_version="test"),
+            AttendanceRecord(session_id=session.id,student_id=absent.id,ai_status=AttendanceStatus.ABSENT,status=AttendanceStatus.ABSENT,model_version="test"),
+        ])
+    headers=auth(identities["faculty_token"])
+    report=client.get(f"/api/v1/reports/attendance?classId={assigned}",headers=headers)
+    assert report.status_code==200,report.text
+    body=report.json()
+    assert body["scope"]=="CLASS" and body["totalSessions"]==1 and body["studentCount"]==2
+    assert body["overallPercentage"]==50 and body["trend"][0]["present"]==1
+    assert body["byClass"][0]["sessionCount"]==1 and body["byClass"][0]["percentage"]==50
+    history=client.get(f"/api/v1/attendance/sessions?classId={assigned}&status=FINALIZED&search=Vision",headers=headers).json()
+    assert history["total"]==1
+    low=client.get(f"/api/v1/reports/attendance/students?classId={assigned}&lowAttendanceOnly=true",headers=headers).json()
+    assert low["total"]==1 and low["items"][0]["name"]=="Absent Student"
+    directory_low=client.get(f"/api/v1/students?classId={assigned}&lowAttendanceOnly=true",headers=headers).json()
+    assert directory_low["total"]==1 and directory_low["items"][0]["name"]=="Absent Student"
+    course=client.get(f"/api/v1/classes/{assigned}",headers=headers).json()
+    assert course["attendance_percentage"]==50
+    denied=client.get("/api/v1/reports/attendance?institutionWide=true",headers=headers)
+    assert denied.status_code==403
+
+
+def test_twin_review_contract_contains_renderable_candidates(client, identities):
+    assigned,_,selected,_=setup_class_scope(identities)
+    with SessionLocal.begin() as db:
+        second=Student(student_id="S004",roll_number="R004",name="Similar Student",department="CSE",semester=5,section="A")
+        db.add(second);db.flush();db.add(Enrolment(student_id=second.id,class_id=assigned))
+        session=AttendanceSession(faculty_id=identities["faculty_id"],attendance_date=date.today(),status=SessionStatus.PENDING_REVIEW)
+        db.add(session);db.flush();db.add(AttendanceSessionClass(session_id=session.id,class_id=assigned))
+        db.add_all([
+            AttendanceRecord(session_id=session.id,student_id=selected,ai_status=AttendanceStatus.REVIEW,status=AttendanceStatus.REVIEW,score=.7,model_version="test"),
+            AttendanceRecord(session_id=session.id,student_id=second.id,ai_status=AttendanceStatus.REVIEW,status=AttendanceStatus.REVIEW,score=.68,model_version="test"),
+        ])
+        review=TwinReview(session_id=session.id,student_a_id=selected,student_b_id=second.id);db.add(review);db.flush();session_id=session.id
+    response=client.get(f"/api/v1/attendance/sessions/{session_id}/twin-reviews",headers=auth(identities["faculty_token"]))
+    assert response.status_code==200,response.text
+    item=response.json()["items"][0]
+    assert item["sessionId"]==session_id and item["studentA"]["name"]=="Selected" and item["studentB"]["confidence"]==.68
+
+
+def test_admin_catalogue_and_audit_filters_are_applied(client, identities):
+    assigned,unrelated,_,_=setup_class_scope(identities);headers=auth(identities["admin_token"])
+    faculty=client.get(f"/api/v1/faculty?department=CSE&status=ACTIVE&classId={assigned}",headers=headers).json()
+    assert faculty["total"]==1 and faculty["items"][0]["id"]==identities["faculty_id"]
+    classes=client.get(f"/api/v1/classes?facultyId={identities['other_id']}&semester=3&department=CSE&status=ACTIVE",headers=headers).json()
+    assert classes["total"]==1 and classes["items"][0]["id"]==unrelated
+    created=client.post("/api/v1/classes",headers=headers,json={"code":"AUD-1","subject":"Audit Test","department":"ECE","semester":1,"section":"A","academic_session":"2026-27"})
+    assert created.status_code==201
+    audit_rows=client.get(f"/api/v1/audit?actorId={identities['admin_id']}&action=CLASS_CREATED&search=CLASS",headers=headers).json()
+    assert audit_rows["total"]==1 and audit_rows["items"][0]["actor_role"]=="ADMIN"

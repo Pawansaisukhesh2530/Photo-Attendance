@@ -31,6 +31,7 @@ export default function AttendanceLayout() {
           harmless. Camera and processing do not, for the reasons below.
         */}
         <Stack.Screen name="[classId]/select" />
+        <Stack.Screen name="[classId]/upload" />
         <Stack.Screen name="[classId]/camera" options={{ gestureEnabled: false }} />
         <Stack.Screen name="[classId]/processing" options={{ gestureEnabled: false }} />
         <Stack.Screen name="[classId]/results" />

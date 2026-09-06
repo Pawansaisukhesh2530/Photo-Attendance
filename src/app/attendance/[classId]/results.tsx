@@ -459,6 +459,7 @@ export default function ResultsScreen() {
           photoWidth={session.photoWidth}
           photoHeight={session.photoHeight}
           records={session.records}
+          detections={session.detections}
           focusedRecordId={focusedRecordId}
           onSelectRecord={(record) => {
             setFocusedRecordId(record.id);
@@ -502,7 +503,7 @@ export default function ResultsScreen() {
           <View style={styles.scopeHeader}>
             <Icon name="classes" size={18} color={palette.primary} />
             <Text variant="titleLg" color={palette.onSurface} style={styles.flexText}>
-              {session.classes.length} classes · {session.summary.total} students
+              {session.classes.length} {session.classes.length === 1 ? 'class' : 'classes'} · {session.summary.total} {session.summary.total === 1 ? 'student' : 'students'}
             </Text>
           </View>
 

@@ -83,7 +83,7 @@ export const ClassSelectRow = memo(function ClassSelectRow({
       feedback="opacity"
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${item.subject}, ${item.displayCode}, ${item.studentCount} students`}
+      accessibilityLabel={`${item.subject}, ${item.displayCode}, ${item.studentCount} ${item.studentCount === 1 ? 'student' : 'students'}`}
       accessibilityHint={selected ? 'Removes this class from the session' : 'Adds this class to the session'}
       style={[styles.rowOuter, !last && styles.divider]}
     >
@@ -102,7 +102,7 @@ export const ClassSelectRow = memo(function ClassSelectRow({
         <View style={styles.metaRow}>
           <ClassCodeTag code={item.displayCode} />
           <Text variant="labelMd" color={palette.onSurfaceVariant}>
-            {item.studentCount} students
+            {item.studentCount} {item.studentCount === 1 ? 'student' : 'students'}
           </Text>
           <Text variant="labelMd" color={palette.onSurfaceVariant}>
             Sem {item.semester}

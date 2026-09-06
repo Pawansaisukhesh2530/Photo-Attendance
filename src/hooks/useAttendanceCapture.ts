@@ -7,9 +7,9 @@ import type { AttendanceCaptureMode, AttendanceSession, ProcessingProgress } fro
 
 export function usePreparePanorama() {
   return useMutation({
-    mutationFn: (sweepUri: string) =>
+    mutationFn: (frameUris: string[]) =>
       attendanceService.preparePanorama({
-        sweepUri,
+        frameUris,
         capturedAt: new Date().toISOString(),
       }),
   });

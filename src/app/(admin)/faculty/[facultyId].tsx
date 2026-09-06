@@ -318,7 +318,7 @@ export default function AdminFacultyProfileScreen() {
                     }
                     feedback="opacity"
                     accessibilityRole="button"
-                    accessibilityLabel={`${course.subject}, ${course.displayCode}, ${course.studentCount} students`}
+                    accessibilityLabel={`${course.subject}, ${course.displayCode}, ${course.studentCount} ${course.studentCount === 1 ? 'student' : 'students'}`}
                     style={styles.classMain}
                   >
                     <View style={styles.classTop}>
@@ -341,7 +341,7 @@ export default function AdminFacultyProfileScreen() {
                       animated={false}
                     />
                     <Text variant="labelMd" color={palette.outline}>
-                      Semester {course.semester} · {course.studentCount} students
+                      Semester {course.semester} · {course.studentCount} {course.studentCount === 1 ? 'student' : 'students'}
                     </Text>
                   </AnimatedPressable>
 

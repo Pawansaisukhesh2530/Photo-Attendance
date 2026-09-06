@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from celery import Celery
 from redis import Redis
@@ -16,6 +17,7 @@ from .recognition import ModelUnavailable, get_face_engine, decide_match
 from .storage import ObjectStorage
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 celery_app = Celery("edutrace", broker=settings.redis_url, backend=settings.redis_url)
 celery_app.conf.update(task_acks_late=True, worker_prefetch_multiplier=1, task_track_started=True)
 
@@ -41,9 +43,9 @@ def process_face_enrolment(self, image_id: str) -> None:
             return
         face=faces[0];x1,y1,x2,y2=face.box
         if min(x2-x1,y2-y1)<80:
-            image.quality={"status":"REJECTED","reason":"FACE_TOO_SMALL"};return
+            image.quality={**face.quality,"status":"REJECTED","reason":"FACE_TOO_SMALL","detected_faces":1};return
         if face.quality["blur_variance"]<35 or not 35<=face.quality["mean_brightness"]<=220:
-            image.quality={**face.quality,"status":"REJECTED","reason":"IMAGE_QUALITY"};return
+            image.quality={**face.quality,"status":"REJECTED","reason":"IMAGE_QUALITY","detected_faces":1};return
         same_student=db.execute(select(StudentFaceEmbedding.embedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==image.student_id,StudentFaceImage.id!=image.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).scalars().all()
         if any(float(np.dot(face.embedding,np.asarray(value,dtype=np.float32)))>=settings.duplicate_template_threshold for value in same_student):
             image.quality={**face.quality,"status":"REJECTED","reason":"DUPLICATE_TEMPLATE"};return
@@ -53,7 +55,7 @@ def process_face_enrolment(self, image_id: str) -> None:
         values=face.embedding.astype(float).tolist()
         if existing:existing.embedding=values;existing.model_version=settings.model_version;existing.revoked_at=None
         else:db.add(StudentFaceEmbedding(image_id=image.id,embedding=values,model_version=settings.model_version))
-        image.quality={**face.quality,"status":"CROSS_IDENTITY_REVIEW" if suspicious>=settings.cross_identity_review_threshold else "ACCEPTED","cross_identity_score":suspicious}
+        image.quality={**face.quality,"status":"CROSS_IDENTITY_REVIEW" if suspicious>=settings.cross_identity_review_threshold else "ACCEPTED","cross_identity_score":suspicious,"detected_faces":1}
 
 
 def _process_attendance(job_id: str) -> None:
@@ -68,6 +70,7 @@ def _process_attendance(job_id: str) -> None:
         job.status = JobStatus.RUNNING
         job.stage = "MATCHING"
         job.progress = 0.2
+        job.error_code = None
         job.attempts += 1
         session.status = SessionStatus.PROCESSING
 
@@ -85,9 +88,13 @@ def _process_attendance(job_id: str) -> None:
                 db.execute(delete(RecognitionCandidate).where(RecognitionCandidate.detection_id.in_(select(FaceDetection.id).join(AttendanceSessionImage).where(AttendanceSessionImage.session_id==session.id))))
                 db.execute(delete(FaceDetection).where(FaceDetection.image_id.in_(select(AttendanceSessionImage.id).where(AttendanceSessionImage.session_id==session.id))))
                 for image in images:
-                    try:faces=engine.analyse(storage.get(image.object_key));successful_images+=1
+                    try:
+                        faces=engine.analyse(storage.get(image.object_key));successful_images+=1
+                        image.processing_error=None
                     except Exception:
-                        image.processing_error="IMAGE_PROCESSING_FAILED";continue
+                        image.processing_error="IMAGE_PROCESSING_FAILED"
+                        logger.exception("Could not process attendance image %s", image.id)
+                        continue
                     image_claims=set()
                     for face in faces:
                         detection=FaceDetection(image_id=image.id,box={"x1":face.box[0],"y1":face.box[1],"x2":face.box[2],"y2":face.box[3]},quality=face.quality,model_version=settings.model_version)
@@ -101,10 +108,25 @@ def _process_attendance(job_id: str) -> None:
                             if decision.student_id in image_claims:conflicted.add(decision.student_id)
                             image_claims.add(decision.student_id)
                             if decision.student_id not in best or decision.score>best[decision.student_id][0]:best[decision.student_id]=(decision.score,decision.reason)
+                if successful_images==0:
+                    job.status=JobStatus.FAILED;job.stage="FAILED";job.progress=1.0
+                    job.error_code="NO_USABLE_SESSION_IMAGE";job.finished_at=datetime.now(timezone.utc)
+                    session.status=SessionStatus.FAILED;session.version+=1
+                    return
                 for student_id in candidate_ids:
                     status,score,reason=resolve_student_status(student_id,bool(gallery[student_id]),best,ambiguous,conflicted,successful_images)
                     record=db.scalar(select(AttendanceRecord).where(AttendanceRecord.session_id==session.id,AttendanceRecord.student_id==student_id))
-                    if not record:db.add(AttendanceRecord(session_id=session.id,student_id=student_id,ai_status=status,status=status,score=score,review_reason=reason,model_version=settings.model_version))
+                    if record:
+                        # PostgreSQL protects the original AI fields from UPDATEs. A deliberate
+                        # unfinalized reprocess replaces the result row while keeping its id and
+                        # any faculty decision, so audit references and manual work remain intact.
+                        replacement=AttendanceRecord(id=record.id,session_id=session.id,student_id=student_id,
+                            ai_status=status,status=record.status if record.amended_at else status,score=score,
+                            review_reason=reason,model_version=settings.model_version,
+                            amended_by=record.amended_by,amended_at=record.amended_at,
+                            amendment_reason=record.amendment_reason,version=record.version+1)
+                        db.delete(record);db.flush();db.add(replacement)
+                    else:db.add(AttendanceRecord(session_id=session.id,student_id=student_id,ai_status=status,status=status,score=score,review_reason=reason,model_version=settings.model_version))
                 missing_gallery=any(not gallery[student_id] for student_id in candidate_ids)
                 session.status=SessionStatus.PENDING_REVIEW if ambiguous or conflicted or missing_gallery or successful_images==0 else SessionStatus.READY;session.version+=1
             except ModelUnavailable:
@@ -113,6 +135,7 @@ def _process_attendance(job_id: str) -> None:
             job.status = JobStatus.SUCCEEDED
             job.stage = "DONE"
             job.progress = 1.0
+            job.error_code = None
             job.finished_at = datetime.now(timezone.utc)
     except Exception:
         with SessionLocal.begin() as db:
@@ -120,6 +143,7 @@ def _process_attendance(job_id: str) -> None:
             if job:
                 job.status = JobStatus.FAILED
                 job.stage = "FAILED"
+                job.progress = 1.0
                 job.error_code = "PROCESSING_FAILED"
                 job.finished_at = datetime.now(timezone.utc)
                 session = db.get(AttendanceSession, job.session_id)

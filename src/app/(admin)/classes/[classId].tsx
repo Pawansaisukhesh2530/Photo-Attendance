@@ -26,7 +26,7 @@ import {
   useToast,
 } from '@/components';
 import { useAttendanceHistory } from '@/hooks/useAttendance';
-import { useAssignFaculty } from '@/hooks/useClassAdmin';
+import { useAssignFaculty, useUpdateEnrolment } from '@/hooks/useClassAdmin';
 import { useClass } from '@/hooks/useClasses';
 import { useInfiniteFaculty } from '@/hooks/useFacultyAdmin';
 import { useInstitutionSettings } from '@/hooks/useSettings';
@@ -57,7 +57,8 @@ export default function AdminClassDetailScreen() {
   const { data: settings } = useInstitutionSettings();
   const { data: course, isLoading, isRefetching, error, refetch } = useClass(classId);
 
-  const roster = useStudents(classId ? { classId, pageSize: ROSTER_PREVIEW } : undefined);
+  const roster = useStudents(classId ? { classId, pageSize: 100 } : undefined);
+  const studentDirectory = useStudents({ pageSize: 100 });
   const history = useAttendanceHistory(classId ? { classId } : undefined);
 
   // Active members only: an inactive lecturer cannot be assigned, so offering them would be a dead
@@ -69,9 +70,16 @@ export default function AdminClassDetailScreen() {
   );
 
   const assign = useAssignFaculty();
+  const updateEnrolment = useUpdateEnrolment();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
 
-  const students = roster.data?.items ?? [];
+  const students = useMemo(() => roster.data?.items ?? [], [roster.data?.items]);
+  const enrolledIds = useMemo(() => new Set(students.map((student) => student.id)), [students]);
+  const availableStudents = useMemo(
+    () => (studentDirectory.data?.items ?? []).filter((student) => !enrolledIds.has(student.id)),
+    [studentDirectory.data?.items, enrolledIds],
+  );
   const totalStudents = roster.data?.total ?? course?.studentCount ?? 0;
   const sessions = history.data ?? [];
   const threshold = settings?.attendanceThreshold;
@@ -99,6 +107,23 @@ export default function AdminClassDetailScreen() {
       }
     },
     [classId, assign, toast],
+  );
+
+  const enrolStudent = useCallback(
+    async (student: Student) => {
+      setStudentPickerOpen(false);
+      if (!classId) return;
+      try {
+        await updateEnrolment.mutateAsync({ classId, addStudentIds: [student.id] });
+        toast.show({ message: `${student.name} enrolled`, tone: 'success' });
+      } catch (e) {
+        toast.show({
+          message: isApiError(e) ? e.message : 'Could not enrol the student.',
+          tone: 'error',
+        });
+      }
+    },
+    [classId, toast, updateEnrolment],
   );
 
   const openSession = useCallback((session: AttendanceSessionSummary) => {
@@ -305,6 +330,17 @@ export default function AdminClassDetailScreen() {
             divider
           />
 
+          <View style={styles.rosterAction}>
+            <Button
+              label="Add student"
+              icon="add"
+              variant="tonal"
+              fullWidth
+              onPress={() => setStudentPickerOpen(true)}
+              loading={updateEnrolment.isPending}
+            />
+          </View>
+
           {roster.isLoading ? (
             <Card padded={false} style={styles.skeletonCard}>
               <SkeletonListItem />
@@ -320,13 +356,13 @@ export default function AdminClassDetailScreen() {
             </Card>
           ) : (
             <Card padded={false}>
-              {students.map((student, index) => (
+              {students.slice(0, ROSTER_PREVIEW).map((student, index) => (
                 <StudentRosterRow
                   key={student.id}
                   student={student}
                   onPress={openStudent}
                   meta={student.studentId}
-                  last={index === students.length - 1}
+                  last={index === Math.min(ROSTER_PREVIEW, students.length) - 1}
                 />
               ))}
             </Card>
@@ -405,6 +441,26 @@ export default function AdminClassDetailScreen() {
           searchText: `${member.employeeId} ${member.department ?? ''}`,
         }))}
       />
+      <SelectionSheet
+        visible={studentPickerOpen}
+        title="Add student to class"
+        subtitle={`Choose a student to enrol in ${course.displayCode}. You can reopen this list to add more.`}
+        searchable
+        searchPlaceholder="Search name, student ID or roll number"
+        emptyMessage="Every available student is already enrolled in this class."
+        onClose={() => setStudentPickerOpen(false)}
+        onSelect={(id) => {
+          const student = availableStudents.find((item) => item.id === id);
+          if (student) void enrolStudent(student);
+        }}
+        options={availableStudents.map((student) => ({
+          id: student.id,
+          label: student.name,
+          description: `${student.rollNumber} · Semester ${student.semester} · Section ${student.section}`,
+          icon: 'students' as const,
+          searchText: `${student.studentId} ${student.department}`,
+        }))}
+      />
     </AdminScaffold>
   );
 }
@@ -422,6 +478,9 @@ const styles = StyleSheet.create({
   },
   block: {
     marginTop: spacing.md,
+  },
+  rosterAction: {
+    marginBottom: spacing.sm,
   },
   summaryTop: {
     flexDirection: 'row',

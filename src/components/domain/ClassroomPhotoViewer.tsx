@@ -5,13 +5,15 @@ import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-nativ
 import { Icon } from '@/components/primitives/Icon';
 import { Text } from '@/components/primitives/Text';
 import { palette, radius, spacing, statusColors } from '@/theme';
-import type { AttendanceRecord } from '@/types';
+import type { AttendanceRecord, DetectedFace } from '@/types';
 
 export interface ClassroomPhotoViewerProps {
   photoUri: string | null;
   photoWidth?: number | null;
   photoHeight?: number | null;
   records: AttendanceRecord[];
+  /** Every backend detection, including faces that did not match the selected roster. */
+  detections?: DetectedFace[];
   /** Highlights one record's box, e.g. when opened from a roster row. */
   focusedRecordId?: string | null;
   onSelectRecord?: (record: AttendanceRecord) => void;
@@ -42,6 +44,7 @@ export function ClassroomPhotoViewer({
   photoWidth,
   photoHeight,
   records,
+  detections = [],
   focusedRecordId = null,
   onSelectRecord,
   showBoxes = true,
@@ -55,6 +58,17 @@ export function ClassroomPhotoViewer({
   };
 
   const withBoxes = records.filter((r) => r.faceBox !== null);
+  const visibleDetections =
+    detections.length > 0
+      ? detections
+      : withBoxes.map((record) => ({
+          id: record.id,
+          imageId: '',
+          box: record.faceBox!,
+          confidence: record.confidence ?? 0,
+          matchStatus: 'MATCHED' as const,
+          matchedStudentId: record.studentId,
+        }));
   const sourceAspectRatio =
     photoWidth && photoHeight && photoWidth > 0 && photoHeight > 0
       ? photoWidth / photoHeight
@@ -83,18 +97,19 @@ export function ClassroomPhotoViewer({
 
         {/* Recognition overlays. */}
         {showBoxes && size
-          ? withBoxes.map((record) => {
-              const box = record.faceBox!;
-              const tokens = statusColors[record.status];
-              const isFocused = focusedRecordId === record.id;
+          ? visibleDetections.map((detection, index) => {
+              const record = records.find((item) => item.studentId === detection.matchedStudentId);
+              const box = detection.box;
+              const tokens = statusColors[record?.status ?? (detection.matchStatus === 'REVIEW' ? 'REVIEW' : 'UNKNOWN')];
+              const isFocused = record ? focusedRecordId === record.id : false;
 
               return (
                 <Pressable
-                  key={record.id}
-                  onPress={onSelectRecord ? () => onSelectRecord(record) : undefined}
-                  disabled={!onSelectRecord}
-                  accessibilityRole={onSelectRecord ? 'button' : 'image'}
-                  accessibilityLabel={`${record.studentName}, ${record.status.toLowerCase()}`}
+                  key={detection.id}
+                  onPress={record && onSelectRecord ? () => onSelectRecord(record) : undefined}
+                  disabled={!record || !onSelectRecord}
+                  accessibilityRole={record && onSelectRecord ? 'button' : 'image'}
+                  accessibilityLabel={record ? `Face ${index + 1}, ${record.studentName}, ${record.status.toLowerCase()}` : `Face ${index + 1}, unmatched`}
                   style={[
                     styles.box,
                     {
@@ -108,7 +123,12 @@ export function ClassroomPhotoViewer({
                     },
                   ]}
                 >
-                  {isFocused ? (
+                  <View style={[styles.faceNumber, { backgroundColor: tokens.accent }]}>
+                    <Text variant="labelMd" color={palette.onPrimary}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                  {isFocused && record ? (
                     <View style={[styles.boxLabel, { backgroundColor: tokens.accent }]}>
                       <Text variant="labelMd" color={palette.onPrimary} numberOfLines={1}>
                         {record.rollNumber}
@@ -130,7 +150,21 @@ export function ClassroomPhotoViewer({
         ) : null}
       </View>
 
-      {showBoxes && withBoxes.length > 0 ? (
+      {showBoxes ? (
+        <View style={styles.detectedSummary}>
+          <Icon name="recognition" size={18} color={palette.primary} />
+          <Text variant="bodyMd" color={palette.onSurface}>
+            {visibleDetections.length} {visibleDetections.length === 1 ? 'face' : 'faces'} detected
+          </Text>
+          {visibleDetections.length > 0 ? (
+            <Text variant="labelMd" color={palette.onSurfaceVariant}>
+              · {visibleDetections.filter((face) => face.matchStatus === 'MATCHED').length} matched
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {showBoxes && visibleDetections.length > 0 ? (
         <View style={styles.legend}>
           {(['PRESENT', 'REVIEW', 'UNKNOWN'] as const).map((status) => (
             <View key={status} style={styles.legendItem}>
@@ -186,6 +220,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs + 1,
     paddingVertical: 1,
     borderRadius: radius.base,
+  },
+  faceNumber: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 5,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detectedSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   caption: {
     position: 'absolute',
