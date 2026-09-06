@@ -49,26 +49,26 @@ export const palette = {
   onErrorContainer: '#93000a',
 
   // --- Surfaces ---
-  background: '#fcf8ff',
+  background: '#eef0ff',
   onBackground: '#1b1b24',
-  surface: '#fcf8ff',
+  surface: 'rgba(255,255,255,0.68)',
   onSurface: '#1b1b24',
   onSurfaceVariant: '#464555',
-  surfaceVariant: '#e4e1ee',
-  surfaceBright: '#fcf8ff',
-  surfaceDim: '#dcd8e5',
-  surfaceContainerLowest: '#ffffff',
-  surfaceContainerLow: '#f5f2ff',
-  surfaceContainer: '#f0ecf9',
-  surfaceContainerHigh: '#eae6f4',
-  surfaceContainerHighest: '#e4e1ee',
+  surfaceVariant: 'rgba(236,236,250,0.72)',
+  surfaceBright: 'rgba(255,255,255,0.76)',
+  surfaceDim: 'rgba(222,222,240,0.78)',
+  surfaceContainerLowest: 'rgba(255,255,255,0.58)',
+  surfaceContainerLow: 'rgba(246,245,255,0.42)',
+  surfaceContainer: 'rgba(244,243,255,0.55)',
+  surfaceContainerHigh: 'rgba(238,237,252,0.68)',
+  surfaceContainerHighest: 'rgba(229,228,246,0.76)',
   surfaceTint: '#4d44e3',
   inverseSurface: '#302f39',
   inverseOnSurface: '#f3effc',
 
   // --- Outlines ---
   outline: '#777587',
-  outlineVariant: '#c7c4d8',
+  outlineVariant: 'rgba(255,255,255,0.72)',
 } as const;
 
 export type PaletteKey = keyof typeof palette;

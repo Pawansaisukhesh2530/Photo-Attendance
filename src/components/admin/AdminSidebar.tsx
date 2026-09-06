@@ -122,7 +122,7 @@ export function AdminSidebar({ active, institutionName, institutionCode }: Admin
 const styles = StyleSheet.create({
   sidebar: {
     width: ADMIN_SIDEBAR_WIDTH,
-    backgroundColor: palette.surface,
+    backgroundColor: 'rgba(255,255,255,0.56)',
     borderRightWidth: StyleSheet.hairlineWidth * 2,
     borderRightColor: palette.outlineVariant,
   },

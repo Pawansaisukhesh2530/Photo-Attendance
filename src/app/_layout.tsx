@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -12,7 +13,7 @@ import { ToastProvider } from '@/components';
 import { useAuthStore, wireAuthToApiClient } from '@/store/authStore';
 import { usePreferencesStore } from '@/store/preferences';
 import { queryClient } from '@/store/queryClient';
-import { palette, useAppFonts } from '@/theme';
+import { useAppFonts } from '@/theme';
 
 /*
   Detach blurred navigator screens on web.
@@ -79,6 +80,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
+          <LinearGradient colors={['#e8eaff', '#f5edff', '#e4f6ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
           <ToastProvider>
             {/*
               Dark glyphs on our light surface. Under SDK 57 edge-to-edge the bar is
@@ -89,7 +91,7 @@ export default function RootLayout() {
             <Stack
               screenOptions={{
                 headerShown: false,
-                contentStyle: { backgroundColor: palette.surfaceContainerLow },
+                contentStyle: { backgroundColor: 'transparent' },
                 animation: 'slide_from_right',
               }}
             >
@@ -109,6 +111,7 @@ export default function RootLayout() {
               />
             </Stack>
           </ToastProvider>
+          </LinearGradient>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

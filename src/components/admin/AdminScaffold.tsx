@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   desktopRoot: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: 'transparent',
   },
   desktopMain: {
     flex: 1,
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     gap: spacing.sm,
-    backgroundColor: palette.surface,
+    backgroundColor: 'rgba(255,255,255,0.54)',
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
     borderBottomColor: palette.outlineVariant,
   },
@@ -219,10 +219,10 @@ const styles = StyleSheet.create({
   },
   mobileRoot: {
     flex: 1,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: 'transparent',
   },
   headerOnlyRoot: {
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: 'transparent',
   },
   mobileHeader: {
     flexDirection: 'row',
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.screen,
     paddingBottom: spacing.sm,
-    backgroundColor: palette.surface,
+    backgroundColor: 'rgba(255,255,255,0.54)',
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
     borderBottomColor: palette.outlineVariant,
   },

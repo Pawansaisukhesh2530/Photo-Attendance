@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     // The Stitch mobile login uses `surface-container-lowest` for input fills. The
     // desktop screens use `surface-bright`; mobile wins, since that is the target here.
-    backgroundColor: palette.surfaceContainerLowest,
-    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+    borderRadius: radius.xl,
   },
   input: {
     flex: 1,

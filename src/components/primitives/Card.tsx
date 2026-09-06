@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { BlurView } from 'expo-blur';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette, radius, shadows, spacing } from '@/theme';
@@ -53,9 +54,9 @@ export function Card({
 
   if (!onPress) {
     return (
-      <View style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
+      <BlurView intensity={32} tint="light" style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
         {content}
-      </View>
+      </BlurView>
     );
   }
 
@@ -68,6 +69,7 @@ export function Card({
       testID={testID}
       style={base}
     >
+      <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
       {content}
     </AnimatedPressable>
   );
@@ -77,7 +79,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: palette.surfaceContainerLowest,
     borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderWidth: 1,
     borderColor: palette.outlineVariant,
     overflow: 'hidden',
   },

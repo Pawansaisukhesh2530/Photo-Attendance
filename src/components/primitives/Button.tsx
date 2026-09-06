@@ -63,7 +63,7 @@ const VARIANTS: Record<ButtonVariant, VariantStyle> = {
     shadow: 'resting',
   },
   secondary: {
-    background: palette.surfaceContainerLowest,
+    background: 'rgba(255,255,255,0.52)',
     label: palette.onSurface,
     border: palette.outlineVariant,
     shadow: 'resting',

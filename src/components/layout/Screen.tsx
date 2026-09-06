@@ -48,7 +48,7 @@ export function Screen({
   children,
   scrollable = false,
   padded = true,
-  background = palette.surfaceContainerLow,
+  background = 'transparent',
   onRefresh,
   refreshing = false,
   respectBottomInset = true,

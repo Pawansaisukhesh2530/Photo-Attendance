@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import { StyleSheet } from 'react-native';
 
 import { AuthGuard, Icon } from '@/components';
@@ -29,6 +30,7 @@ export default function FacultyLayout() {
           tabBarActiveTintColor: palette.primary,
           tabBarInactiveTintColor: palette.onSurfaceVariant,
           tabBarStyle: styles.tabBar,
+          tabBarBackground: () => <BlurView intensity={45} tint="light" style={StyleSheet.absoluteFill} />,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
           sceneStyle: { backgroundColor: palette.surfaceContainerLow },
@@ -80,7 +82,7 @@ export default function FacultyLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: palette.surface,
+    backgroundColor: 'transparent',
     borderTopColor: palette.outlineVariant,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     // Height and bottom inset are handled by the navigator; only paddingTop is nudged
