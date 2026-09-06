@@ -44,7 +44,11 @@ def process_face_enrolment(self, image_id: str) -> None:
         face=faces[0];x1,y1,x2,y2=face.box
         if min(x2-x1,y2-y1)<80:
             image.quality={**face.quality,"status":"REJECTED","reason":"FACE_TOO_SMALL","detected_faces":1};return
-        if face.quality["blur_variance"]<35 or not 35<=face.quality["mean_brightness"]<=220:
+        # Laplacian variance depends strongly on camera resolution and portrait
+        # compression. The previous 35 cutoff rejected usable high-resolution
+        # phone portraits (values around 18–34). Keep a lower safety floor while
+        # retaining the one-face and brightness checks.
+        if face.quality["blur_variance"]<settings.min_enrolment_blur_variance or not 35<=face.quality["mean_brightness"]<=220:
             image.quality={**face.quality,"status":"REJECTED","reason":"IMAGE_QUALITY","detected_faces":1};return
         same_student=db.execute(select(StudentFaceEmbedding.embedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==image.student_id,StudentFaceImage.id!=image.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).scalars().all()
         if any(float(np.dot(face.embedding,np.asarray(value,dtype=np.float32)))>=settings.duplicate_template_threshold for value in same_student):

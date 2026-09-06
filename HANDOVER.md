@@ -141,7 +141,7 @@ cd backend
 
 During the latest local test, the classroom photo contained six detectable faces. All six remained unmatched because the roster had insufficient usable face enrollment data. One student had four saved photos, but only one was accepted: the other images contained two faces, no detectable face, or excessive blur. Uploading at least two more accepted single-person portraits is required before treating recognition results as meaningful.
 
-The local similarity threshold is `0.50`. Calibrate the threshold with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
+The local similarity threshold is `0.50`. Enrollment uses a conservative blur-variance floor of `15` plus brightness and exactly-one-face checks. Calibrate both quality and match thresholds with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
 
 ## Production work still required
 

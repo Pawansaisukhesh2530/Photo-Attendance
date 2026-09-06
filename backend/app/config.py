@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     max_image_pixels: int = 60_000_000
     min_enrolment_images: int = 3
     max_enrolment_images: int = 5
+    min_enrolment_blur_variance: float = Field(default=15.0, ge=0)
     max_session_images: int = 8
     max_candidates: int = 500
 
