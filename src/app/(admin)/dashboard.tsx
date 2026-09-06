@@ -37,7 +37,7 @@ import type { AttendanceSessionSummary, ClassAttendanceStat } from '@/types';
  */
 export default function AdminDashboardScreen() {
   const dashboard = useAdminDashboard();
-  const { isExpanded, screenPadding } = useResponsive();
+  const { isExpanded, screenPadding, metricColumns } = useResponsive();
 
   const scaffoldProps = {
     active: 'dashboard',
@@ -76,7 +76,7 @@ export default function AdminDashboardScreen() {
   }
 
   const threshold = dashboard.threshold ?? dashboard.report?.threshold;
-  const cell = isExpanded ? styles.cellThird : styles.cellHalf;
+  const cell = metricColumns === 4 ? styles.cellQuarter : metricColumns === 3 ? styles.cellThird : styles.cellHalf;
   const openSession = (session: AttendanceSessionSummary): void => {
     router.push({
       pathname: '/attendance/[classId]/results',
@@ -346,6 +346,10 @@ const styles = StyleSheet.create({
   },
   cellThird: {
     width: '33.333%',
+    padding: spacing.xs,
+  },
+  cellQuarter: {
+    width: '25%',
     padding: spacing.xs,
   },
   block: {

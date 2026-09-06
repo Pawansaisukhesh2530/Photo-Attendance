@@ -1,6 +1,7 @@
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/primitives/Icon';
@@ -65,6 +66,7 @@ export function AdminScaffold({
 }: AdminScaffoldProps) {
   const { isExpanded } = useResponsive();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
 
   if (isExpanded) {
     return (
@@ -122,7 +124,9 @@ export function AdminScaffold({
 
           {/* Content is capped: a data table stretched across a very wide monitor is unreadable. */}
           <View style={styles.desktopBody}>
-            <View style={styles.desktopConstrain}>{children}</View>
+            <Animated.View key={pathname} entering={FadeIn.duration(220)} style={styles.transitionPage}>
+              <View style={styles.desktopConstrain}>{children}</View>
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -159,7 +163,11 @@ export function AdminScaffold({
         {action}
       </View>
 
-      <View style={styles.mobileBody}>{children}</View>
+      <View style={styles.mobileBody}>
+        <Animated.View key={pathname} entering={FadeIn.duration(220)} style={styles.transitionPage}>
+          {children}
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -216,6 +224,9 @@ const styles = StyleSheet.create({
   desktopBody: {
     flex: 1,
     minWidth: 0,
+  },
+  transitionPage: {
+    flex: 1,
   },
   desktopConstrain: {
     flex: 1,
