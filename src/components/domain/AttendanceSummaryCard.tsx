@@ -55,6 +55,7 @@ export function MetricCard({
       onPress={onPress}
       style={[
         styles.metricCard,
+        isCompact ? styles.metricCardCompact : styles.metricCardExpanded,
         cardBackground ? { backgroundColor: cardBackground } : null,
         cardBorder ? { borderColor: cardBorder } : null,
         selected ? styles.metricSelected : null,
@@ -219,8 +220,15 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
   metricCard: {
-    minHeight: 104,
     justifyContent: 'space-between',
+  },
+  metricCardCompact: {
+    minHeight: 128,
+    height: 128,
+  },
+  metricCardExpanded: {
+    minHeight: 176,
+    height: 176,
   },
   metricSelected: {
     borderColor: palette.primary,
