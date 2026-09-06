@@ -5,6 +5,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { studentService } from '@/services';
 import { isApiError } from '@/api/client';
+import { prepareEnrollmentPhoto } from '@/utils/image';
 import { palette, radius, spacing } from '@/theme';
 import type { FaceImageInfo } from '@/types';
 
@@ -87,10 +88,8 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
     }
     setBusy(true);
     try {
-      await studentService.uploadFaceImages(
-        studentId,
-        picked.assets.map((asset) => asset.uri),
-      );
+      const prepared = await Promise.all(picked.assets.map((asset) => prepareEnrollmentPhoto(asset.uri, asset.width, asset.height)));
+      await studentService.uploadFaceImages(studentId, prepared.map((photo) => photo.uri));
       setMessage('Photos saved. The backend is checking every image now.');
       await load();
     } catch (error) {

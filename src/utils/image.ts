@@ -8,6 +8,21 @@ export interface PreparedPhoto {
   height: number;
 }
 
+/** Re-encodes gallery enrollment images as JPEG so HEIC/other phone formats are accepted by the API. */
+export async function prepareEnrollmentPhoto(uri: string, width: number, height: number): Promise<PreparedPhoto> {
+  try {
+    const longEdge = Math.max(width, height);
+    const scale = Math.min(1, PHOTO_MAX_DIMENSION / longEdge);
+    const context = ImageManipulator.manipulate(uri);
+    if (scale < 1) context.resize({ width: Math.round(width * scale), height: Math.round(height * scale) });
+    const image = await context.renderAsync();
+    const result = await image.saveAsync({ format: SaveFormat.JPEG, compress: PHOTO_COMPRESSION_QUALITY });
+    return { uri: result.uri, width: result.width ?? width, height: result.height ?? height };
+  } catch {
+    return { uri, width, height };
+  }
+}
+
 /**
  * Prepares a captured classroom photograph for upload.
  *
