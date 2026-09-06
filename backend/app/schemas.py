@@ -191,6 +191,7 @@ class FinalizeRequest(BaseModel):
 
 class SettingsPatch(BaseModel):
     institution_name: str | None = Field(default=None, min_length=1, max_length=250)
+    institution_code: str | None = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     attendance_threshold: int | None = Field(default=None, ge=1, le=100)
     image_retention_days: int | None = Field(default=None, ge=1, le=3650)
     departments: list[str] | None = Field(default=None, min_length=1, max_length=100)
@@ -201,6 +202,7 @@ class SettingsPatch(BaseModel):
 class SettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     institution_name: str
+    institution_code: str = "EDU"
     attendance_threshold: int
     image_retention_days: int
     version: int

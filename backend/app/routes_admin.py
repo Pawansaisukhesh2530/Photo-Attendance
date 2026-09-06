@@ -244,6 +244,9 @@ def get_settings_route(db:Session=Depends(get_db),_:User=Depends(admin)):
     if item.faculty_roles is None:
         item.faculty_roles = ["Assistant Professor"]
         changed = True
+    if not getattr(item, "institution_code", None):
+        item.institution_code = "EDU"
+        changed = True
     if changed:
         db.commit()
         db.refresh(item)
@@ -253,7 +256,7 @@ def get_settings_route(db:Session=Depends(get_db),_:User=Depends(admin)):
 @router.patch("/settings",response_model=SettingsOut)
 @router.patch("/settings/institution",response_model=SettingsOut,include_in_schema=False)
 def patch_settings(payload:SettingsPatch,db:Session=Depends(get_db),actor:User=Depends(admin)):
-    item=db.get(InstitutionSettings,1) or InstitutionSettings(id=1);db.add(item);db.flush();ensure_version(item,payload.version);before={"attendance_threshold":item.attendance_threshold}
+    item=db.get(InstitutionSettings,1) or InstitutionSettings(id=1);db.add(item);db.flush();ensure_version(item,payload.version);before={"attendance_threshold":item.attendance_threshold,"institution_code":item.institution_code}
     values=payload.model_dump(exclude={"version"},exclude_none=True)
     if "departments" in values:
         values["departments"] = sorted({value.strip() for value in values["departments"] if value.strip()})
@@ -261,6 +264,8 @@ def patch_settings(payload:SettingsPatch,db:Session=Depends(get_db),actor:User=D
     if "faculty_roles" in values:
         values["faculty_roles"] = sorted({value.strip() for value in values["faculty_roles"] if value.strip()})
         if not values["faculty_roles"]: raise Problem(422,"Invalid faculty roles","Keep at least one faculty role.")
+    if "institution_code" in values:
+        values["institution_code"] = values["institution_code"].strip().upper()
     for k,v in values.items():setattr(item,k,v)
     item.version+=1;audit(db,actor,"SETTING_CHANGED",item,before=before,after={"attendance_threshold":item.attendance_threshold});db.commit();return item
 

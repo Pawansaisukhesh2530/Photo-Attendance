@@ -275,6 +275,7 @@ class InstitutionSettings(Versioned, Base):
     __tablename__ = "institution_settings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     institution_name: Mapped[str] = mapped_column(String(250), default="EduTrace Institution")
+    institution_code: Mapped[str] = mapped_column(String(20), default="EDU")
     attendance_threshold: Mapped[int] = mapped_column(Integer, default=75)
     image_retention_days: Mapped[int] = mapped_column(Integer, default=30)
     departments: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["CSE"])

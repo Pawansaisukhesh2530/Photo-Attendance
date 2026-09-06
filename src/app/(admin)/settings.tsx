@@ -44,6 +44,7 @@ export default function AdminSettingsScreen() {
 
   const [thresholdText, setThresholdText] = useState('');
   const [institutionName, setInstitutionName] = useState('');
+  const [institutionCode, setInstitutionCode] = useState('');
   const [departmentsText, setDepartmentsText] = useState('');
   const [rolesText, setRolesText] = useState('');
   const [seeded, setSeeded] = useState(false);
@@ -53,6 +54,7 @@ export default function AdminSettingsScreen() {
   if (settings && !seeded) {
     setThresholdText(String(settings.attendanceThreshold));
     setInstitutionName(settings.institutionName);
+    setInstitutionCode(settings.institutionCode);
     setDepartmentsText(settings.departments.join(', '));
     setRolesText(settings.facultyRoles.join(', '));
     setSeeded(true);
@@ -64,11 +66,12 @@ export default function AdminSettingsScreen() {
     Number.isFinite(parsedThreshold) &&
     parsedThreshold !== settings.attendanceThreshold;
   const nameChanged = settings !== undefined && institutionName.trim() !== settings.institutionName;
+  const codeChanged = settings !== undefined && institutionCode.trim().toUpperCase() !== settings.institutionCode;
   const departments = useMemo(() => departmentsText.split(',').map((value) => value.trim()).filter(Boolean), [departmentsText]);
   const departmentsChanged = settings !== undefined && departments.join('|') !== settings.departments.join('|');
   const roles = useMemo(() => rolesText.split(',').map((value) => value.trim()).filter(Boolean), [rolesText]);
   const rolesChanged = settings !== undefined && roles.join('|') !== settings.facultyRoles.join('|');
-  const dirty = thresholdChanged || nameChanged || departmentsChanged || rolesChanged;
+  const dirty = thresholdChanged || nameChanged || codeChanged || departmentsChanged || rolesChanged;
 
   const save = useCallback(async () => {
     setConfirming(false);
@@ -78,11 +81,13 @@ export default function AdminSettingsScreen() {
       const saved = await update.mutateAsync({
         ...(thresholdChanged ? { attendanceThreshold: parsedThreshold } : {}),
         ...(nameChanged ? { institutionName: institutionName.trim() } : {}),
+        ...(codeChanged ? { institutionCode: institutionCode.trim().toUpperCase() } : {}),
         ...(departmentsChanged ? { departments } : {}),
         ...(rolesChanged ? { facultyRoles: roles } : {}),
       });
       setThresholdText(String(saved.attendanceThreshold));
       setInstitutionName(saved.institutionName);
+      setInstitutionCode(saved.institutionCode);
       setDepartmentsText(saved.departments.join(', '));
       setRolesText(saved.facultyRoles.join(', '));
       toast.show({ message: 'Settings saved', tone: 'success' });
@@ -96,7 +101,7 @@ export default function AdminSettingsScreen() {
         tone: 'error',
       });
     }
-  }, [thresholdChanged, nameChanged, departmentsChanged, departments, rolesChanged, roles, parsedThreshold, institutionName, update, toast]);
+  }, [thresholdChanged, nameChanged, codeChanged, departmentsChanged, departments, rolesChanged, roles, parsedThreshold, institutionName, institutionCode, update, toast]);
 
   const scaffold = {
     active: 'settings',
@@ -209,6 +214,16 @@ export default function AdminSettingsScreen() {
             />
             <View style={styles.gap} />
             <Input
+              label="Institution short code"
+              value={institutionCode}
+              onChangeText={setInstitutionCode}
+              placeholder="EDU"
+              autoCapitalize="characters"
+              helperText="2–20 letters, numbers, hyphens or underscores. Used in compact headers."
+              {...(fieldErrors.institutionCode ? { error: fieldErrors.institutionCode } : {})}
+            />
+            <View style={styles.gap} />
+            <Input
               label="Departments"
               value={departmentsText}
               onChangeText={setDepartmentsText}
@@ -224,12 +239,6 @@ export default function AdminSettingsScreen() {
               helperText="Enter comma-separated roles. Only these options appear when adding faculty."
             />
             <View style={styles.gap} />
-            <View style={styles.readOnlyRow}>
-              <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.flex}>
-                Short code
-              </Text>
-              <Badge label={settings.institutionCode} />
-            </View>
             <View style={styles.readOnlyRow}>
               <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.flex}>
                 Academic session
@@ -327,6 +336,9 @@ export default function AdminSettingsScreen() {
             onPress={() => {
               setThresholdText(String(settings.attendanceThreshold));
               setInstitutionName(settings.institutionName);
+              setInstitutionCode(settings.institutionCode);
+              setDepartmentsText(settings.departments.join(', '));
+              setRolesText(settings.facultyRoles.join(', '));
               setFieldErrors({});
             }}
             disabled={!dirty || update.isPending}
