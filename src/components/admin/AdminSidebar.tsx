@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { memo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/primitives/Icon';
 import { GlassSurface } from '@/components/primitives/GlassSurface';
@@ -45,6 +46,14 @@ const NavItem = memo(function NavItem({
       accessibilityLabel={label}
       style={[styles.item, active && styles.itemActive]}
     >
+      {active ? (
+        <Animated.View
+          entering={FadeIn.duration(220)}
+          exiting={FadeOut.duration(140)}
+          pointerEvents="none"
+          style={styles.activeLiquid}
+        />
+      ) : null}
       {/*
         Active state carries four signals, not just colour: a filled surface, a left rail, the
         native `selected` state and `aria-current` on the web. Colour alone would fail for anyone
@@ -172,8 +181,18 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   itemActive: {
-    backgroundColor: 'rgba(169,156,255,0.15)',
-    borderColor: 'rgba(190,180,255,0.22)',
+    borderColor: 'rgba(215,208,255,0.28)',
+    transform: [{ scale: 1.01 }],
+  },
+  activeLiquid: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(151,132,255,0.20)',
+    boxShadow: '0 8px 24px rgba(103,76,255,0.22)',
   },
   itemLabel: {
     flex: 1,

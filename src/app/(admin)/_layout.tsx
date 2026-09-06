@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { AuthGuard, GlassSurface, Icon } from '@/components';
+import { AuthGuard, GlassSurface, LiquidTabIcon } from '@/components';
 import { fontFamilies, palette, spacing, useResponsive } from '@/theme';
 
 /**
@@ -50,35 +50,35 @@ export default function AdminLayout() {
           name="dashboard"
           options={{
             title: 'Overview',
-            tabBarIcon: ({ color }) => <Icon name="dashboard" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="dashboard" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen
           name="faculty"
           options={{
             title: 'Faculty',
-            tabBarIcon: ({ color }) => <Icon name="faculty" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="faculty" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen
           name="students"
           options={{
             title: 'Students',
-            tabBarIcon: ({ color }) => <Icon name="students" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="students" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen
           name="classes"
           options={{
             title: 'Classes',
-            tabBarIcon: ({ color }) => <Icon name="classes" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="classes" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen
           name="more"
           options={{
             title: 'More',
-            tabBarIcon: ({ color }) => <Icon name="menu" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="menu" color={color} focused={focused} />,
           }}
         />
 

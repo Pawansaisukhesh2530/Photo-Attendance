@@ -93,9 +93,10 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <LinearGradient colors={['#05070d', '#0a0e19', '#101827']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-          <LinearGradient pointerEvents="none" colors={['rgba(113,91,255,0.20)', 'rgba(113,91,255,0)']} style={[styles.ambientOrb, styles.orbViolet]} />
-          <LinearGradient pointerEvents="none" colors={['rgba(41,172,208,0.16)', 'rgba(41,172,208,0)']} style={[styles.ambientOrb, styles.orbCyan]} />
+          <LinearGradient colors={['#020712', '#061b2a', '#17102f', '#07131f']} locations={[0, 0.36, 0.72, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+          <LinearGradient pointerEvents="none" colors={['rgba(125,93,255,0.36)', 'rgba(125,93,255,0)']} style={[styles.ambientOrb, styles.orbViolet]} />
+          <LinearGradient pointerEvents="none" colors={['rgba(35,207,220,0.27)', 'rgba(35,207,220,0)']} style={[styles.ambientOrb, styles.orbCyan]} />
+          <LinearGradient pointerEvents="none" colors={['rgba(255,82,155,0.16)', 'rgba(255,82,155,0)']} style={[styles.ambientOrb, styles.orbRose]} />
           <ThemeProvider value={glassNavigationTheme}>
           <ToastProvider>
             {/*
@@ -149,5 +150,12 @@ const styles = StyleSheet.create({
   orbCyan: {
     bottom: -500,
     left: -240,
+  },
+  orbRose: {
+    top: '30%',
+    left: '24%',
+    width: 540,
+    height: 540,
+    borderRadius: 270,
   },
 });
