@@ -16,6 +16,8 @@ Last validation performed on September 6, 2026:
 
 ## Repository layout
 
+The current UI keeps the dark glass hierarchy and native `expo-glass-effect` surfaces where supported, with blur/material fallbacks elsewhere. The later experimental deep aurora animation was reverted, so this handover describes the stable visual baseline.
+
 - `src/app/` — Expo Router screens for authentication, administration, faculty workflows, attendance capture, upload, processing, and results.
 - `src/api/` — HTTP boundary and backend response mapping.
 - `src/components/` — shared UI and domain components.
@@ -136,6 +138,8 @@ npm run lint
 cd backend
 .\.venv\Scripts\python.exe -m pytest -q
 ```
+
+Run `git diff --check` before committing. Do not commit root/backend `.env` files, private image data, model weights, database dumps, `node_modules`, or `.venv`.
 
 ## Current recognition notes
 

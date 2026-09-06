@@ -6,6 +6,8 @@ EduTrace is an Expo/React Native frontend connected to a FastAPI backend. The fr
 
 The backend is the source of truth. PostgreSQL stores structured application data, private object storage holds images, and the recognition worker processes face images outside the API request that accepted them.
 
+For the supported local workflow, start PostgreSQL and the API with [`backend/start-local-postgres.ps1`](backend/start-local-postgres.ps1), then run Expo with `npx expo start --lan` from the repository root. Set `EXPO_PUBLIC_API_BASE_URL` to `http://127.0.0.1:8010/api/v1` for web or to the computer's LAN IP for a phone.
+
 ```mermaid
 flowchart LR
     UI[Expo frontend<br/>Web, Android, or iOS] -->|HTTPS/JSON and multipart files| API[FastAPI<br/>/api/v1]
@@ -112,6 +114,8 @@ The Admin should create data in this order because later records reference earli
 7. Open every Student profile and upload 3–5 clear, recent face images.
 8. Have the Faculty employee log in, select a class, and take attendance.
 
+Departments and faculty roles are configured by an Admin from Settings before faculty are created. Those saved settings populate the dropdowns, and the API validates submitted values against the same settings so spelling variants cannot create inconsistent values.
+
 The temporary faculty password is suitable only for local beta testing. Production must collect or generate a one-time password and force the employee to change it.
 
 ## Face enrolment workflow
@@ -208,6 +212,7 @@ Processing uses an idempotency key based on the session, uploaded image checksum
 | Every person is Unknown | Check face enrolment quality, model status, threshold, and whether the correct class was selected |
 | Image does not display | Verify the signed URL has not expired and the stored object still exists |
 | Processing does not progress | Check the local worker or Celery worker and Redis configuration |
+| `422 Unprocessable Entity` on an image upload | Inspect the response detail: the API rejected the decoded file, MIME type, dimensions, face count, or quality. Re-select a real JPEG/PNG/HEIC file and ensure the request is multipart form data. |
 
 ## Deployment differences
 

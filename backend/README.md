@@ -1,6 +1,18 @@
 # EduTrace Backend
 
-Standalone FastAPI backend for multi-image classroom attendance.
+FastAPI and PostgreSQL backend for the EduTrace attendance application. The API owns authentication, administration, enrolment, private image storage, recognition jobs, attendance decisions, exports, settings, and audit history. The Expo client uses these real API routes; there is no mock service switch.
+
+## Quick start on Windows
+
+Prerequisites are Node.js/npm, Python 3.12 or newer, PostgreSQL on port `5432`, and the separately licensed YuNet/SFace ONNX model files described below.
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\start-local-postgres.ps1 -User postgres -Database edutrace -Port 8010
+```
+
+The PostgreSQL script creates the database when needed, applies Alembic migrations, seeds local administrator/demo data, starts the local recognition worker, and serves Uvicorn on `http://localhost:8010`. It prompts for the PostgreSQL password unless `PGPASSWORD` is set. Check `/docs`, `/api/v1/health/live`, and `/api/v1/health/ready` before frontend testing.
 
 ## Run locally
 
@@ -22,6 +34,12 @@ The worker safely returns `UNKNOWN` records when model files are not configured.
 - Tune `EDUTRACE_MATCH_THRESHOLD` and `EDUTRACE_AMBIGUITY_MARGIN` only from a separate, consented validation set.
 
 For classes near 100 students, capture 3–4 overlapping high-resolution views. The worker combines full-frame and overlapping tiled detections, preserves candidate evidence, and merges observations into one record per enrolled student.
+
+## Connecting the Expo frontend
+
+From the repository root, set `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8010/api/v1` in `.env` for web. For Expo Go on a phone, replace `127.0.0.1` with the computer's LAN IP and restart Metro with `npx expo start --lan`. Local credentials are `admin@example.edu` / `LocalTest123!` and `tester.faculty@example.edu` / `LocalTest123!`; change them before any shared deployment. Admin-created departments and faculty roles are stored in the settings API and populate the forms' dropdowns.
+
+The local worker uses OpenCV YuNet for detection and SFace for 512-dimensional embeddings. Place `face_detection_yunet.onnx` and `face_recognition_sface.onnx` under `models/`; these files are ignored by Git. It accepts JPEG, PNG, HEIC, and HEIF uploads. A student enrollment image must contain exactly one clear face. Classroom images may contain many faces; unmatched detections remain `UNKNOWN`. Missing models never produce invented identities.
 
 ## Development checks
 

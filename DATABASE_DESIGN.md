@@ -2,7 +2,7 @@
 
 ## Database purpose
 
-PostgreSQL is the authoritative store for identity, academic structure, biometric metadata, processing evidence, final attendance decisions, settings, and audit history. Image bytes are stored privately on disk or in S3-compatible storage; PostgreSQL stores their object keys, checksums, dimensions, MIME types, and processing metadata.
+PostgreSQL is the authoritative store for identity, academic structure, biometric metadata, processing evidence, final attendance decisions, settings, and audit history. Image bytes are stored privately on disk in the local beta or in S3-compatible storage in deployment; PostgreSQL stores their object keys, checksums, dimensions, MIME types, and processing metadata. Apply current Alembic migrations before using the API; exact row counts depend on whether local seed data has been run.
 
 Development can store embeddings as JSON by setting `EDUTRACE_PGVECTOR_ENABLED=false`. A pgvector deployment stores each normalized face embedding as `vector(512)`. Application code must never return a raw embedding through an API or write one to logs.
 
@@ -211,7 +211,7 @@ Additional application-level rules include 3–5 active face images, 1–8 sessi
 | Recognition completed | One job, detections, ranked candidates, and one attendance record per eligible Student |
 | Faculty finalizes | Session becomes `FINALIZED`; corrections and audits remain traceable |
 
-The current clean local database has one Admin, one settings row, and zero Faculty, Students, Classes, sessions, images, and recognition evidence.
+After a fresh migration with the administrator seed only, the database contains one Admin and one settings row. The demo seed adds sample faculty, students, classes, enrolments, and related records; do not assume a clean database when interpreting counts.
 
 ## Storage relationship
 

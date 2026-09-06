@@ -1,5 +1,9 @@
 # EduTrace Multi-Image Attendance Backend
 
+## Implementation status
+
+The repository contains a working local beta of this plan: FastAPI, SQLAlchemy, Alembic, PostgreSQL, local private storage, a local recognition worker, OpenCV YuNet/SFace recognition, authentication, administration, face enrolment, classroom and panorama attendance, review, finalization, exports, and audit routes are implemented. The Docker/Celery/Redis/MinIO/SCRFD/ArcFace items below describe the production direction; they are not required for the local Windows workflow in [`backend/README.md`](backend/README.md).
+
 ## Goal
 
 Build a standalone FastAPI backend for authentication, institution administration, multi-image face enrolment, multi-image classroom attendance, review, finalization, reports, and append-only audit history. Frontend integration is outside this repository change.
