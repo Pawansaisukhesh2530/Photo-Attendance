@@ -132,11 +132,7 @@ export function ClassroomPhotoViewer({
                         {record.rollNumber || record.studentName}
                       </Text>
                     </View>
-                  ) : (
-                    <View style={[styles.boxLabel, { backgroundColor: tokens.accent }]}>
-                      <Text variant="labelMd" color={palette.onPrimary}>Unknown face</Text>
-                    </View>
-                  )}
+                  ) : null}
                 </Pressable>
               );
             })
