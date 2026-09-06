@@ -237,6 +237,16 @@ def list_enrolments(class_id:str,page_number:int=Query(1,alias="page"),page_size
 def get_settings_route(db:Session=Depends(get_db),_:User=Depends(admin)):
     item=db.get(InstitutionSettings,1)
     if not item:item=InstitutionSettings(id=1);db.add(item);db.commit()
+    changed = False
+    if item.departments is None:
+        item.departments = ["CSE"]
+        changed = True
+    if item.faculty_roles is None:
+        item.faculty_roles = ["Assistant Professor"]
+        changed = True
+    if changed:
+        db.commit()
+        db.refresh(item)
     return item
 
 

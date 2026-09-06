@@ -25,6 +25,8 @@ async def lifespan(_: FastAPI):
             if engine.dialect.name == "postgresql":
                 conn.execute(text("ALTER TABLE institution_settings ADD COLUMN IF NOT EXISTS departments JSON"))
                 conn.execute(text("ALTER TABLE institution_settings ADD COLUMN IF NOT EXISTS faculty_roles JSON"))
+                conn.execute(text("UPDATE institution_settings SET departments = '[\"CSE\"]'::json WHERE departments IS NULL"))
+                conn.execute(text("UPDATE institution_settings SET faculty_roles = '[\"Assistant Professor\"]'::json WHERE faculty_roles IS NULL"))
             elif engine.dialect.name == "sqlite":
                 try: conn.execute(text("ALTER TABLE institution_settings ADD COLUMN departments JSON"))
                 except Exception: pass
