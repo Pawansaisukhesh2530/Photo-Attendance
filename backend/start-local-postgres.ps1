@@ -25,7 +25,7 @@ $env:EDUTRACE_MODEL_VERSION="opencv-yunet-sface-local-v3"
 $env:EDUTRACE_MATCH_THRESHOLD="0.50"
 & $Python -m app.ensure_postgres --user $User --password $Password --database $Database
 & $Python -m alembic upgrade head
-& $Python -m app.seed --email admin@example.edu --password LocalTest123!
+& $Python -m app.seed --email admin@christuniversity.in --password LocalTest123!
 & $Python -m app.seed --demo --password LocalTest123!
 $worker=Start-Process -FilePath $Python -ArgumentList "-m","app.local_worker" -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
 try { & $Python -m uvicorn app.main:app --host $BindAddress --port $Port }

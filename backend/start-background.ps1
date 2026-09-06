@@ -19,7 +19,7 @@ $env:EDUTRACE_PGVECTOR_ENABLED = "false"
 
 & $python -m alembic upgrade head
 if ($LASTEXITCODE -ne 0) { throw "Database migration failed." }
-& $python -m app.seed --email admin@example.edu --password LocalTest123!
+& $python -m app.seed --email admin@christuniversity.in --password LocalTest123!
 if ($LASTEXITCODE -ne 0) { throw "Administrator seed failed." }
 & $python -m app.seed --demo --password LocalTest123!
 if ($LASTEXITCODE -ne 0) { throw "Demo seed failed." }

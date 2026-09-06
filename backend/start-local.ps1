@@ -21,7 +21,7 @@ $env:EDUTRACE_MATCH_THRESHOLD = "0.50"
 $env:EDUTRACE_PGVECTOR_ENABLED = "false"
 & $Python -m alembic upgrade head
 if ($LASTEXITCODE -ne 0) { throw "Database migration failed." }
-& $Python -m app.seed --email admin@example.edu --password LocalTest123!
+& $Python -m app.seed --email admin@christuniversity.in --password LocalTest123!
 if ($LASTEXITCODE -ne 0) { throw "Administrator seed failed." }
 & $Python -m app.seed --demo --password LocalTest123!
 if ($LASTEXITCODE -ne 0) { throw "Demo seed failed." }

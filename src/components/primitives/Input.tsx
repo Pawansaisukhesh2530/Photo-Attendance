@@ -1,5 +1,6 @@
 import { forwardRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -70,7 +71,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
 
         <TextInput
           ref={ref}
-          style={styles.input}
+          style={[styles.input, Platform.OS === 'web' && styles.webInputReset]}
           placeholderTextColor={palette.outline}
           secureTextEntry={secure && !revealed}
           onFocus={(event) => {
@@ -143,6 +144,11 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
+  },
+  webInputReset: {
+    outlineStyle: 'none' as never,
+    outlineWidth: 0,
+    boxShadow: 'none',
   },
   message: {
     marginTop: 2,

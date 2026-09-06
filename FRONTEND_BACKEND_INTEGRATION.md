@@ -61,7 +61,7 @@ POST /api/v1/auth/login
 Content-Type: application/json
 
 {
-  "identifier": "admin@example.edu",
+  "identifier": "admin@christuniversity.in",
   "password": "LocalTest123!"
 }
 ```

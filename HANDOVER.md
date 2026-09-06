@@ -96,8 +96,8 @@ Local start scripts seed these development-only accounts:
 
 | Role | Identifier | Password |
 | --- | --- | --- |
-| Administrator | `admin@example.edu` | `LocalTest123!` |
-| Faculty | `tester.faculty@example.edu` | `LocalTest123!` |
+| Administrator | `admin@christuniversity.in` | `LocalTest123!` |
+| Faculty | `tester.faculty@christuniversity.in` | `LocalTest123!` |
 
 Change or remove seeded credentials before any shared or production deployment.
 

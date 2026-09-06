@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useState } from 'react';
 
 import { palette, radius, spacing, touch, typography } from '@/theme';
@@ -36,7 +36,7 @@ export function SearchField({
     <View style={[styles.field, focused && styles.fieldFocused]}>
       <Icon name="search" size={20} color={palette.outline} />
       <TextInput
-        style={styles.input}
+        style={[styles.input, Platform.OS === 'web' && styles.webInputReset]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -91,5 +91,10 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
+  },
+  webInputReset: {
+    outlineStyle: 'none' as never,
+    outlineWidth: 0,
+    boxShadow: 'none',
   },
 });

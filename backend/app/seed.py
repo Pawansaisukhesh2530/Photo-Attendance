@@ -7,13 +7,22 @@ from .models import (CourseClass,Enrolment,Faculty,FacultyClassAssignment,
                      InstitutionSettings,Role,Student,User)
 from .security import hash_password
 
+ADMIN_EMAIL = "admin@christuniversity.in"
+FACULTY_EMAIL = "tester.faculty@christuniversity.in"
+
 
 def seed_admin(email: str, password: str) -> None:
     Base.metadata.create_all(engine)
     with SessionLocal.begin() as db:
-        if db.scalar(select(User).where(User.email == email.lower())):
+        normalized_email = email.lower()
+        user = db.scalar(select(User).where(User.email == normalized_email))
+        if not user and normalized_email == ADMIN_EMAIL:
+            user = db.scalar(select(User).where(User.email == "admin@example.edu"))
+            if user:
+                user.email = normalized_email
+        if user:
             return
-        db.add(User(email=email.lower(), password_hash=hash_password(password), role=Role.ADMIN))
+        db.add(User(email=normalized_email, password_hash=hash_password(password), role=Role.ADMIN))
         if not db.get(InstitutionSettings, 1):
             db.add(InstitutionSettings(id=1))
 
@@ -22,7 +31,10 @@ def seed_demo(password:str="LocalTest123!")->None:
     """Create a minimal, clearly labelled local test scope. Idempotent."""
     Base.metadata.create_all(engine)
     with SessionLocal.begin() as db:
-        user=db.scalar(select(User).where(User.email=="tester.faculty@example.edu"))
+        user=db.scalar(select(User).where(User.email==FACULTY_EMAIL))
+        if not user:
+            user=db.scalar(select(User).where(User.email=="tester.faculty@example.edu"))
+            if user:user.email=FACULTY_EMAIL
         if not user:user=User(email="tester.faculty@example.edu",password_hash=hash_password(password),role=Role.FACULTY);db.add(user);db.flush()
         faculty=db.scalar(select(Faculty).where(Faculty.user_id==user.id))
         if not faculty:faculty=Faculty(user_id=user.id,employee_id="TEST-F001",name="Test Faculty",department="CSE");db.add(faculty);db.flush()
