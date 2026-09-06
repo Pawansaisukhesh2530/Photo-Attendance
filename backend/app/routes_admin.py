@@ -18,8 +18,10 @@ from .security import hash_password, require_roles
 
 router = APIRouter(tags=["Administration"])
 admin = require_roles(Role.ADMIN)
-ALLOWED_DEPARTMENTS = {"CSE", "ECE", "EEE", "ME", "CE", "IT", "AI & DS", "AIML", "MBA"}
 ALLOWED_DESIGNATIONS = {"Professor", "Associate Professor", "Assistant Professor", "Lecturer", "Teaching Assistant"}
+def allowed_departments(db: Session) -> set[str]:
+    settings = db.get(InstitutionSettings, 1)
+    return set(settings.departments if settings and settings.departments else ["CSE"])
 
 def faculty_json(db:Session,item:Faculty):
     user=db.get(User,item.user_id);assigned=list(db.scalars(select(FacultyClassAssignment.class_id).where(FacultyClassAssignment.faculty_id==item.id)))
@@ -61,7 +63,7 @@ def _commit(db: Session, message="A record with that identifier already exists."
 
 @router.post("/faculty", status_code=201)
 def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: User = Depends(admin)):
-    if payload.department not in ALLOWED_DEPARTMENTS:
+    if payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     if payload.designation not in ALLOWED_DESIGNATIONS:
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
@@ -97,7 +99,7 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
     item=db.get(Faculty,faculty_id)
     if not item: raise Problem(404,"Faculty not found","The faculty member does not exist.")
     ensure_version(item,payload.version); before={"status":item.status.value,"name":item.name}
-    if payload.department is not None and payload.department not in ALLOWED_DEPARTMENTS:
+    if payload.department is not None and payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     if payload.designation is not None and payload.designation not in ALLOWED_DESIGNATIONS:
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
@@ -240,7 +242,11 @@ def get_settings_route(db:Session=Depends(get_db),_:User=Depends(admin)):
 @router.patch("/settings/institution",response_model=SettingsOut,include_in_schema=False)
 def patch_settings(payload:SettingsPatch,db:Session=Depends(get_db),actor:User=Depends(admin)):
     item=db.get(InstitutionSettings,1) or InstitutionSettings(id=1);db.add(item);db.flush();ensure_version(item,payload.version);before={"attendance_threshold":item.attendance_threshold}
-    for k,v in payload.model_dump(exclude={"version"},exclude_none=True).items():setattr(item,k,v)
+    values=payload.model_dump(exclude={"version"},exclude_none=True)
+    if "departments" in values:
+        values["departments"] = sorted({value.strip() for value in values["departments"] if value.strip()})
+        if not values["departments"]: raise Problem(422,"Invalid departments","Keep at least one department.")
+    for k,v in values.items():setattr(item,k,v)
     item.version+=1;audit(db,actor,"SETTING_CHANGED",item,before=before,after={"attendance_threshold":item.attendance_threshold});db.commit();return item
 
 

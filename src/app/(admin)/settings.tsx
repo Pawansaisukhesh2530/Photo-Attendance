@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { isApiError } from '@/api/client';
@@ -44,6 +44,7 @@ export default function AdminSettingsScreen() {
 
   const [thresholdText, setThresholdText] = useState('');
   const [institutionName, setInstitutionName] = useState('');
+  const [departmentsText, setDepartmentsText] = useState('');
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -51,6 +52,7 @@ export default function AdminSettingsScreen() {
   if (settings && !seeded) {
     setThresholdText(String(settings.attendanceThreshold));
     setInstitutionName(settings.institutionName);
+    setDepartmentsText(settings.departments.join(', '));
     setSeeded(true);
   }
 
@@ -60,7 +62,9 @@ export default function AdminSettingsScreen() {
     Number.isFinite(parsedThreshold) &&
     parsedThreshold !== settings.attendanceThreshold;
   const nameChanged = settings !== undefined && institutionName.trim() !== settings.institutionName;
-  const dirty = thresholdChanged || nameChanged;
+  const departments = useMemo(() => departmentsText.split(',').map((value) => value.trim()).filter(Boolean), [departmentsText]);
+  const departmentsChanged = settings !== undefined && departments.join('|') !== settings.departments.join('|');
+  const dirty = thresholdChanged || nameChanged || departmentsChanged;
 
   const save = useCallback(async () => {
     setConfirming(false);
@@ -70,9 +74,11 @@ export default function AdminSettingsScreen() {
       const saved = await update.mutateAsync({
         ...(thresholdChanged ? { attendanceThreshold: parsedThreshold } : {}),
         ...(nameChanged ? { institutionName: institutionName.trim() } : {}),
+        ...(departmentsChanged ? { departments } : {}),
       });
       setThresholdText(String(saved.attendanceThreshold));
       setInstitutionName(saved.institutionName);
+      setDepartmentsText(saved.departments.join(', '));
       toast.show({ message: 'Settings saved', tone: 'success' });
     } catch (e) {
       if (isApiError(e) && e.kind === 'VALIDATION' && e.fieldErrors) {
@@ -84,7 +90,7 @@ export default function AdminSettingsScreen() {
         tone: 'error',
       });
     }
-  }, [thresholdChanged, nameChanged, parsedThreshold, institutionName, update, toast]);
+  }, [thresholdChanged, nameChanged, departmentsChanged, departments, parsedThreshold, institutionName, update, toast]);
 
   const scaffold = {
     active: 'settings',
@@ -194,6 +200,14 @@ export default function AdminSettingsScreen() {
               onChangeText={setInstitutionName}
               icon="institution"
               {...(fieldErrors.institutionName ? { error: fieldErrors.institutionName } : {})}
+            />
+            <View style={styles.gap} />
+            <Input
+              label="Departments"
+              value={departmentsText}
+              onChangeText={setDepartmentsText}
+              placeholder="CSE, ECE, IT"
+              helperText="Enter comma-separated department names. These values drive all department dropdowns."
             />
             <View style={styles.gap} />
             <View style={styles.readOnlyRow}>

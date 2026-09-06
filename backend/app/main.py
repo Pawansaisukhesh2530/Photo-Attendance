@@ -21,6 +21,12 @@ from fastapi import Depends
 async def lifespan(_: FastAPI):
     if get_settings().env in {"development", "test"}:
         Base.metadata.create_all(engine)
+        with engine.begin() as conn:
+            if engine.dialect.name == "postgresql":
+                conn.execute(text("ALTER TABLE institution_settings ADD COLUMN IF NOT EXISTS departments JSON"))
+            elif engine.dialect.name == "sqlite":
+                try: conn.execute(text("ALTER TABLE institution_settings ADD COLUMN departments JSON"))
+                except Exception: pass
     yield
 
 

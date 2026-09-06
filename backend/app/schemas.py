@@ -193,6 +193,7 @@ class SettingsPatch(BaseModel):
     institution_name: str | None = Field(default=None, min_length=1, max_length=250)
     attendance_threshold: int | None = Field(default=None, ge=1, le=100)
     image_retention_days: int | None = Field(default=None, ge=1, le=3650)
+    departments: list[str] | None = Field(default=None, min_length=1, max_length=100)
     version: int
 
 
@@ -202,3 +203,4 @@ class SettingsOut(BaseModel):
     attendance_threshold: int
     image_retention_days: int
     version: int
+    departments: list[str] = ["CSE"]

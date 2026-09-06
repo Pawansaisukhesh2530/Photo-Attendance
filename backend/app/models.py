@@ -277,4 +277,5 @@ class InstitutionSettings(Versioned, Base):
     institution_name: Mapped[str] = mapped_column(String(250), default="EduTrace Institution")
     attendance_threshold: Mapped[int] = mapped_column(Integer, default=75)
     image_retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    departments: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["CSE"])
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
