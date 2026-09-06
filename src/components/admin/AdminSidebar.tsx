@@ -7,6 +7,7 @@ import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
 import { palette, radius, spacing, touch } from '@/theme';
+import { useAuthStore } from '@/store/authStore';
 
 import { ADMIN_DESTINATIONS } from './adminNav';
 
@@ -76,6 +77,8 @@ const NavItem = memo(function NavItem({
  * through.
  */
 export function AdminSidebar({ active, institutionName, institutionCode }: AdminSidebarProps) {
+  const logout = useAuthStore((state) => state.logout);
+
   return (
     <View style={styles.sidebar}>
       <GlassSurface intensity={82} style={StyleSheet.absoluteFill} />
@@ -115,6 +118,21 @@ export function AdminSidebar({ active, institutionName, institutionCode }: Admin
         <Text variant="labelMd" color={palette.outline}>
           EduTrace Pro
         </Text>
+        <AnimatedPressable
+          onPress={async () => {
+            await logout();
+            router.replace('/(auth)/login');
+          }}
+          feedback="opacity"
+          accessibilityRole="button"
+          accessibilityLabel="Log out"
+          style={styles.logout}
+        >
+          <Icon name="logout" size={18} color={palette.onSurfaceVariant} />
+          <Text variant="labelMd" color={palette.onSurfaceVariant}>
+            Log out
+          </Text>
+        </AnimatedPressable>
       </View>
     </View>
   );
@@ -182,5 +200,13 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderTopColor: palette.outlineVariant,
+  },
+  logout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: touch.min,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
   },
 });
