@@ -11,9 +11,9 @@ import {
   Input,
   Screen,
   SectionHeader,
+  SelectionSheet,
   Text,
   useToast,
-  type FilterChipOption,
 } from '@/components';
 import {
   useCreateFaculty,
@@ -23,6 +23,9 @@ import {
 import { useInstitutionSettings } from '@/hooks/useSettings';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { FacultyStatus } from '@/types';
+
+const DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'ME', 'CE', 'IT', 'AI & DS', 'AIML', 'MBA'];
+const DESIGNATIONS = ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer', 'Teaching Assistant'];
 
 /**
  * Create or edit a faculty member.
@@ -58,6 +61,8 @@ export default function AdminFacultyFormScreen() {
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
+  const [departmentPickerOpen, setDepartmentPickerOpen] = useState(false);
+  const [designationPickerOpen, setDesignationPickerOpen] = useState(false);
 
   // Seed once from the loaded record. Guarded by `seeded` so a background refetch cannot overwrite
   // what the administrator is part-way through typing.
@@ -72,10 +77,8 @@ export default function AdminFacultyFormScreen() {
     setSeeded(true);
   }
 
-  const departmentOptions = useMemo<FilterChipOption<string>[]>(
-    () => (settings?.departments ?? []).map((d) => ({ value: d, label: d })),
-    [settings],
-  );
+  const departmentOptions = useMemo(() => DEPARTMENTS.map((d) => ({ id: d, label: d, selected: d === department })), [department]);
+  const designationOptions = useMemo(() => DESIGNATIONS.map((d) => ({ id: d, label: d, selected: d === designation })), [designation]);
 
   const submit = useCallback(async () => {
     setFieldErrors({});
@@ -206,36 +209,17 @@ export default function AdminFacultyFormScreen() {
         <View style={styles.block}>
           <SectionHeader title="Role" divider />
           <Card>
-            <Input
-              label="Designation"
-              value={designation}
-              onChangeText={setDesignation}
-              placeholder="Assistant Professor"
-              icon="faculty"
-              {...(fieldErrors.designation ? { error: fieldErrors.designation } : {})}
-            />
+            <View style={styles.field}>
+              <Text variant="labelMd" color={palette.onSurface}>Role / designation</Text>
+              <Button label={designation || 'Select role'} icon="faculty" variant="secondary" fullWidth onPress={() => setDesignationPickerOpen(true)} />
+              {fieldErrors.designation ? <Text variant="labelMd" color={palette.error}>{fieldErrors.designation}</Text> : null}
+            </View>
 
-            <Input
-              label="Department"
-              value={department}
-              onChangeText={setDepartment}
-              placeholder="Computer Science"
-              autoCapitalize="words"
-              {...(fieldErrors.department ? { error: fieldErrors.department } : {})}
-            />
-            {departmentOptions.length > 0 ? (
-              <View style={styles.field}>
-                <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
-                  SAVED DEPARTMENTS
-                </Text>
-                <FilterChips
-                  options={departmentOptions}
-                  selected={department}
-                  onSelect={setDepartment}
-                  contentInset={0}
-                />
-              </View>
-            ) : null}
+            <View style={styles.field}>
+              <Text variant="labelMd" color={palette.onSurface}>Department</Text>
+              <Button label={department || 'Select department'} variant="secondary" fullWidth onPress={() => setDepartmentPickerOpen(true)} />
+              {fieldErrors.department ? <Text variant="labelMd" color={palette.error}>{fieldErrors.department}</Text> : null}
+            </View>
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
@@ -276,6 +260,8 @@ export default function AdminFacultyFormScreen() {
           />
         </View>
       </Screen>
+      <SelectionSheet visible={departmentPickerOpen} title="Choose department" options={departmentOptions} onSelect={(value) => { setDepartment(value); setDepartmentPickerOpen(false); }} onClose={() => setDepartmentPickerOpen(false)} searchable />
+      <SelectionSheet visible={designationPickerOpen} title="Choose role / designation" options={designationOptions} onSelect={(value) => { setDesignation(value); setDesignationPickerOpen(false); }} onClose={() => setDesignationPickerOpen(false)} searchable />
     </AdminScaffold>
   );
 }

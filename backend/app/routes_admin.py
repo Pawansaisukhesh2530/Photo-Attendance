@@ -18,6 +18,8 @@ from .security import hash_password, require_roles
 
 router = APIRouter(tags=["Administration"])
 admin = require_roles(Role.ADMIN)
+ALLOWED_DEPARTMENTS = {"CSE", "ECE", "EEE", "ME", "CE", "IT", "AI & DS", "AIML", "MBA"}
+ALLOWED_DESIGNATIONS = {"Professor", "Associate Professor", "Assistant Professor", "Lecturer", "Teaching Assistant"}
 
 def faculty_json(db:Session,item:Faculty):
     user=db.get(User,item.user_id);assigned=list(db.scalars(select(FacultyClassAssignment.class_id).where(FacultyClassAssignment.faculty_id==item.id)))
@@ -59,6 +61,10 @@ def _commit(db: Session, message="A record with that identifier already exists."
 
 @router.post("/faculty", status_code=201)
 def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: User = Depends(admin)):
+    if payload.department not in ALLOWED_DEPARTMENTS:
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
+    if payload.designation not in ALLOWED_DESIGNATIONS:
+        raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
     user = User(email=payload.email.lower(), password_hash=hash_password(payload.password), role=Role.FACULTY)
     db.add(user); db.flush()
     member = Faculty(user_id=user.id, employee_id=payload.employee_id, name=payload.name,
@@ -91,6 +97,10 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
     item=db.get(Faculty,faculty_id)
     if not item: raise Problem(404,"Faculty not found","The faculty member does not exist.")
     ensure_version(item,payload.version); before={"status":item.status.value,"name":item.name}
+    if payload.department is not None and payload.department not in ALLOWED_DEPARTMENTS:
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
+    if payload.designation is not None and payload.designation not in ALLOWED_DESIGNATIONS:
+        raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
     for key,value in payload.model_dump(exclude={"version"},exclude_none=True).items(): setattr(item,key,value)
     item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); db.commit(); return faculty_json(db,item)
 
