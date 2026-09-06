@@ -47,15 +47,38 @@ async def enrol_faces(student_id: str, files: list[UploadFile] = File(...), db: 
     if len({x.checksum for x in validated}) != len(validated):
         raise Problem(409, "Duplicate image", "The upload contains duplicate images.")
     storage = ObjectStorage()
+    checksums = [image.checksum for image in validated]
+    existing = {
+        row.checksum: row
+        for row in db.scalars(
+            select(StudentFaceImage).where(
+                StudentFaceImage.student_id == student_id,
+                StudentFaceImage.checksum.in_(checksums),
+            )
+        )
+    }
     rows=[]
     for image in validated:
+        previous = existing.get(image.checksum)
+        if previous:
+            # Re-uploading a photo is idempotent. A revoked image is restored and
+            # queued for validation again; an active image is returned as-is.
+            if previous.revoked_at:
+                previous.revoked_at = None
+                previous.quality = {"status": "PENDING_MODEL_VALIDATION"}
+                previous.width = image.width
+                previous.height = image.height
+                previous.mime_type = image.mime_type
+                previous.version += 1
+            rows.append(previous)
+            continue
         key=f"students/{student_id}/faces/{image.checksum}"
         storage.put(key,image)
         row=StudentFaceImage(student_id=student_id,object_key=key,checksum=image.checksum,mime_type=image.mime_type,width=image.width,height=image.height,quality={"status":"PENDING_MODEL_VALIDATION"})
         db.add(row);rows.append(row)
     db.flush();audit(db,actor,"FACE_IMAGES_ENROLLED",student,after={"image_ids":[r.id for r in rows]});db.commit()
     for row in rows:
-        if settings.queue_backend=="celery":
+        if row.quality.get("status") == "PENDING_MODEL_VALIDATION" and settings.queue_backend=="celery":
             try: process_face_enrolment.delay(row.id)
             except Exception: pass
     return {"items":[{"id":r.id,"checksum":r.checksum,"width":r.width,"height":r.height,"status":r.quality["status"]} for r in rows]}
