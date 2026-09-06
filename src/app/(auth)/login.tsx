@@ -91,8 +91,6 @@ export default function LoginScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.bottomGlow}
         />
-        <View style={styles.orbit} />
-        <View style={styles.orbitDot} />
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -227,41 +225,20 @@ const styles = StyleSheet.create({
   },
   topGlow: {
     position: 'absolute',
-    top: -120,
-    right: -100,
-    width: 360,
-    height: 360,
-    borderRadius: 180,
+    top: -70,
+    right: -120,
+    width: 520,
+    height: 190,
     opacity: 0.9,
+    transform: [{ rotate: '-16deg' }],
   },
   bottomGlow: {
     position: 'absolute',
-    bottom: -180,
-    left: -160,
-    width: 420,
-    height: 420,
-    borderRadius: 210,
-  },
-  orbit: {
-    position: 'absolute',
-    top: 116,
-    left: 24,
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    borderWidth: 1,
-    borderColor: 'rgba(169,156,255,0.20)',
-    transform: [{ rotate: '-18deg' }],
-  },
-  orbitDot: {
-    position: 'absolute',
-    top: 110,
-    left: 93,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.secondary,
-    opacity: 0.8,
+    bottom: -110,
+    left: -150,
+    width: 560,
+    height: 180,
+    transform: [{ rotate: '14deg' }],
   },
   scroll: {
     flexGrow: 1,

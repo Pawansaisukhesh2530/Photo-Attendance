@@ -89,5 +89,7 @@ const styles = StyleSheet.create({
     ...typography.bodyLg,
     color: palette.onSurface,
     paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
 });

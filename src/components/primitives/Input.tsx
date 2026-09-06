@@ -141,6 +141,8 @@ const styles = StyleSheet.create({
     // Vertical padding is zero because the row is already height-constrained;
     // Android otherwise adds its own and pushes the text off-centre.
     paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   message: {
     marginTop: 2,
