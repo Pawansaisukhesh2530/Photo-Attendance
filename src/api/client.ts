@@ -327,7 +327,11 @@ export async function uploadAttendanceMedia<T>(
 
 export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='files'):Promise<T> {
   const form=new FormData();
-  fileUris.forEach((uri,index)=>appendFilePart(form,fieldName,uri,`image-${index+1}.jpg`,'image/jpeg'));
+  fileUris.forEach((uri,index)=>{
+    const extension = uri.split('?')[0].split('.').pop()?.toLowerCase();
+    const type = extension === 'png' ? 'image/png' : extension === 'heic' || extension === 'heif' ? 'image/heic' : 'image/jpeg';
+    appendFilePart(form,fieldName,uri,`image-${index+1}.${extension === 'png' ? 'png' : extension === 'heic' || extension === 'heif' ? 'heic' : 'jpg'}`,type);
+  });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('timeout'), UPLOAD_TIMEOUT_MS);
   try {

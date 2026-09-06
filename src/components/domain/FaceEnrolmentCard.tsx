@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { studentService } from '@/services';
+import { isApiError } from '@/api/client';
 import { palette, radius, spacing } from '@/theme';
 import type { FaceImageInfo } from '@/types';
 
@@ -92,8 +93,8 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
       );
       setMessage('Photos saved. The backend is checking every image now.');
       await load();
-    } catch {
-      setMessage('Could not upload these photos. Check the backend connection and try again.');
+    } catch (error) {
+      setMessage(isApiError(error) ? error.message : 'Could not upload these photos. Check the backend connection and try again.');
     } finally {
       setBusy(false);
     }
