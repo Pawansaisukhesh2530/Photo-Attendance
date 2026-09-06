@@ -278,4 +278,5 @@ class InstitutionSettings(Versioned, Base):
     attendance_threshold: Mapped[int] = mapped_column(Integer, default=75)
     image_retention_days: Mapped[int] = mapped_column(Integer, default=30)
     departments: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["CSE"])
+    faculty_roles: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["Assistant Professor"])
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

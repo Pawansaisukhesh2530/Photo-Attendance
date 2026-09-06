@@ -194,6 +194,7 @@ class SettingsPatch(BaseModel):
     attendance_threshold: int | None = Field(default=None, ge=1, le=100)
     image_retention_days: int | None = Field(default=None, ge=1, le=3650)
     departments: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    faculty_roles: list[str] | None = Field(default=None, min_length=1, max_length=100)
     version: int
 
 
@@ -204,3 +205,4 @@ class SettingsOut(BaseModel):
     image_retention_days: int
     version: int
     departments: list[str] = ["CSE"]
+    faculty_roles: list[str] = ["Assistant Professor"]

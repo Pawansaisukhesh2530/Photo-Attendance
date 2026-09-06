@@ -18,10 +18,12 @@ from .security import hash_password, require_roles
 
 router = APIRouter(tags=["Administration"])
 admin = require_roles(Role.ADMIN)
-ALLOWED_DESIGNATIONS = {"Professor", "Associate Professor", "Assistant Professor", "Lecturer", "Teaching Assistant"}
 def allowed_departments(db: Session) -> set[str]:
     settings = db.get(InstitutionSettings, 1)
     return set(settings.departments if settings and settings.departments else ["CSE"])
+def allowed_designations(db: Session) -> set[str]:
+    settings = db.get(InstitutionSettings, 1)
+    return set(settings.faculty_roles if settings and settings.faculty_roles else ["Assistant Professor"])
 
 def faculty_json(db:Session,item:Faculty):
     user=db.get(User,item.user_id);assigned=list(db.scalars(select(FacultyClassAssignment.class_id).where(FacultyClassAssignment.faculty_id==item.id)))
@@ -65,7 +67,7 @@ def _commit(db: Session, message="A record with that identifier already exists."
 def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: User = Depends(admin)):
     if payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
-    if payload.designation not in ALLOWED_DESIGNATIONS:
+    if payload.designation not in allowed_designations(db):
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
     user = User(email=payload.email.lower(), password_hash=hash_password(payload.password), role=Role.FACULTY)
     db.add(user); db.flush()
@@ -101,7 +103,7 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
     ensure_version(item,payload.version); before={"status":item.status.value,"name":item.name}
     if payload.department is not None and payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
-    if payload.designation is not None and payload.designation not in ALLOWED_DESIGNATIONS:
+    if payload.designation is not None and payload.designation not in allowed_designations(db):
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
     for key,value in payload.model_dump(exclude={"version"},exclude_none=True).items(): setattr(item,key,value)
     item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); db.commit(); return faculty_json(db,item)
@@ -246,6 +248,9 @@ def patch_settings(payload:SettingsPatch,db:Session=Depends(get_db),actor:User=D
     if "departments" in values:
         values["departments"] = sorted({value.strip() for value in values["departments"] if value.strip()})
         if not values["departments"]: raise Problem(422,"Invalid departments","Keep at least one department.")
+    if "faculty_roles" in values:
+        values["faculty_roles"] = sorted({value.strip() for value in values["faculty_roles"] if value.strip()})
+        if not values["faculty_roles"]: raise Problem(422,"Invalid faculty roles","Keep at least one faculty role.")
     for k,v in values.items():setattr(item,k,v)
     item.version+=1;audit(db,actor,"SETTING_CHANGED",item,before=before,after={"attendance_threshold":item.attendance_threshold});db.commit();return item
 

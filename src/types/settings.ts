@@ -33,6 +33,8 @@ export interface InstitutionSettings {
   academicSession: string;
   /** Departments the institution recognises. Drives admin department facets. */
   departments: string[];
+  /** Faculty roles/designations available in the faculty form. */
+  facultyRoles: string[];
   /** Highest semester number in use. */
   semesterCount: number;
 
@@ -63,5 +65,6 @@ export interface UpdateSettingsRequest {
   attendanceThreshold?: number;
   academicSession?: string;
   departments?: string[];
+  facultyRoles?: string[];
   semesterCount?: number;
 }

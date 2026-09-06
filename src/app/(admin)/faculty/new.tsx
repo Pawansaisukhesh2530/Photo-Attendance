@@ -78,7 +78,7 @@ export default function AdminFacultyFormScreen() {
   }
 
   const departmentOptions = useMemo(() => (settings?.departments?.length ? settings.departments : DEPARTMENTS).map((d) => ({ id: d, label: d, selected: d === department })), [department, settings]);
-  const designationOptions = useMemo(() => DESIGNATIONS.map((d) => ({ id: d, label: d, selected: d === designation })), [designation]);
+  const designationOptions = useMemo(() => (settings?.facultyRoles?.length ? settings.facultyRoles : DESIGNATIONS).map((d) => ({ id: d, label: d, selected: d === designation })), [designation, settings]);
 
   const submit = useCallback(async () => {
     setFieldErrors({});

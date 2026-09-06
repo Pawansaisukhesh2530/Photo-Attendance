@@ -45,6 +45,7 @@ export default function AdminSettingsScreen() {
   const [thresholdText, setThresholdText] = useState('');
   const [institutionName, setInstitutionName] = useState('');
   const [departmentsText, setDepartmentsText] = useState('');
+  const [rolesText, setRolesText] = useState('');
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -53,6 +54,7 @@ export default function AdminSettingsScreen() {
     setThresholdText(String(settings.attendanceThreshold));
     setInstitutionName(settings.institutionName);
     setDepartmentsText(settings.departments.join(', '));
+    setRolesText(settings.facultyRoles.join(', '));
     setSeeded(true);
   }
 
@@ -64,7 +66,9 @@ export default function AdminSettingsScreen() {
   const nameChanged = settings !== undefined && institutionName.trim() !== settings.institutionName;
   const departments = useMemo(() => departmentsText.split(',').map((value) => value.trim()).filter(Boolean), [departmentsText]);
   const departmentsChanged = settings !== undefined && departments.join('|') !== settings.departments.join('|');
-  const dirty = thresholdChanged || nameChanged || departmentsChanged;
+  const roles = useMemo(() => rolesText.split(',').map((value) => value.trim()).filter(Boolean), [rolesText]);
+  const rolesChanged = settings !== undefined && roles.join('|') !== settings.facultyRoles.join('|');
+  const dirty = thresholdChanged || nameChanged || departmentsChanged || rolesChanged;
 
   const save = useCallback(async () => {
     setConfirming(false);
@@ -75,10 +79,12 @@ export default function AdminSettingsScreen() {
         ...(thresholdChanged ? { attendanceThreshold: parsedThreshold } : {}),
         ...(nameChanged ? { institutionName: institutionName.trim() } : {}),
         ...(departmentsChanged ? { departments } : {}),
+        ...(rolesChanged ? { facultyRoles: roles } : {}),
       });
       setThresholdText(String(saved.attendanceThreshold));
       setInstitutionName(saved.institutionName);
       setDepartmentsText(saved.departments.join(', '));
+      setRolesText(saved.facultyRoles.join(', '));
       toast.show({ message: 'Settings saved', tone: 'success' });
     } catch (e) {
       if (isApiError(e) && e.kind === 'VALIDATION' && e.fieldErrors) {
@@ -90,7 +96,7 @@ export default function AdminSettingsScreen() {
         tone: 'error',
       });
     }
-  }, [thresholdChanged, nameChanged, departmentsChanged, departments, parsedThreshold, institutionName, update, toast]);
+  }, [thresholdChanged, nameChanged, departmentsChanged, departments, rolesChanged, roles, parsedThreshold, institutionName, update, toast]);
 
   const scaffold = {
     active: 'settings',
@@ -208,6 +214,14 @@ export default function AdminSettingsScreen() {
               onChangeText={setDepartmentsText}
               placeholder="CSE, ECE, IT"
               helperText="Enter comma-separated department names. These values drive all department dropdowns."
+            />
+            <View style={styles.gap} />
+            <Input
+              label="Faculty roles / designations"
+              value={rolesText}
+              onChangeText={setRolesText}
+              placeholder="Professor, Assistant Professor, Lecturer"
+              helperText="Enter comma-separated roles. Only these options appear when adding faculty."
             />
             <View style={styles.gap} />
             <View style={styles.readOnlyRow}>
