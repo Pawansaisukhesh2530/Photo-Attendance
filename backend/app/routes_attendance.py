@@ -35,8 +35,11 @@ router = APIRouter(tags=["Attendance"])
 async def enrol_faces(student_id: str, files: list[UploadFile] = File(...), db: Session = Depends(get_db),
                        actor: User = Depends(require_roles(Role.ADMIN))):
     settings = get_settings()
-    if not settings.min_enrolment_images <= len(files) <= settings.max_enrolment_images:
-        raise Problem(422, "Invalid image count", f"Upload {settings.min_enrolment_images}-{settings.max_enrolment_images} images together.")
+    # Allow incremental enrollment because Android/iOS pickers may return one asset
+    # even when multi-select is requested. Readiness still requires the configured
+    # minimum number of accepted images; each request only needs one valid image.
+    if not 1 <= len(files) <= settings.max_enrolment_images:
+        raise Problem(422, "Invalid image count", f"Upload 1-{settings.max_enrolment_images} images per request.")
     from .models import Student
     student = db.get(Student, student_id)
     if not student: raise Problem(404, "Student not found", "The student does not exist.")

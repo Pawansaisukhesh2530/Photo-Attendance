@@ -104,7 +104,7 @@ Change or remove seeded credentials before any shared or production deployment.
 1. Sign in as the administrator.
 2. Create faculty, students, and classes.
 3. Assign faculty to a class and enroll students from the class detail page.
-4. Open each student and upload 3–5 clear enrollment photos.
+4. Open each student and upload one or more clear enrollment photos. The mobile picker can upload them incrementally.
 5. Confirm at least three photos show `Ready`. Each enrollment photo must contain exactly one clear, well-lit face.
 6. Sign in as faculty, select a class, and take attendance with Photo or Panorama.
 7. For desktop testing, use the class detail `Upload test photo` action.

@@ -76,8 +76,8 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
       quality: 1,
     });
     if (picked.canceled) return;
-    if (picked.assets.length < 3 || picked.assets.length > 5) {
-      setMessage('Choose 3–5 different clear portrait photos.');
+    if (picked.assets.length < 1 || picked.assets.length > 5) {
+      setMessage('Choose 1–5 different clear portrait photos.');
       return;
     }
     setBusy(true);
@@ -160,7 +160,7 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
       ) : null}
 
       <Button
-        label={images.length ? 'Add another 3–5 photos' : 'Enroll 3–5 face photos'}
+        label={images.length ? 'Add 1–5 more photos' : 'Enroll face photo(s)'}
         icon="photo"
         variant="secondary"
         fullWidth
