@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { Icon } from '@/components/primitives/Icon';
 import { Button } from '@/components/primitives/Button';
@@ -189,7 +189,7 @@ export function ClassroomPhotoViewer({
         </View>
       </Modal>
 
-      {showBoxes && !previewMode && visibleDetections.length > 0 ? (
+      {showBoxes && visibleDetections.length > 0 ? (
         <View style={styles.legend}>
           {(['PRESENT', 'REVIEW', 'UNKNOWN'] as const).map((status) => (
             <View key={status} style={styles.legendItem}>
