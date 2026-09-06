@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -77,6 +78,22 @@ export default function LoginScreen() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['rgba(111,92,255,0.24)', 'rgba(111,92,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topGlow}
+        />
+        <LinearGradient
+          colors={['rgba(62,214,177,0.13)', 'rgba(62,214,177,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.bottomGlow}
+        />
+        <View style={styles.orbit} />
+        <View style={styles.orbitDot} />
+      </View>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -207,6 +224,44 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.surface,
+  },
+  topGlow: {
+    position: 'absolute',
+    top: -120,
+    right: -100,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    opacity: 0.9,
+  },
+  bottomGlow: {
+    position: 'absolute',
+    bottom: -180,
+    left: -160,
+    width: 420,
+    height: 420,
+    borderRadius: 210,
+  },
+  orbit: {
+    position: 'absolute',
+    top: 116,
+    left: 24,
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 1,
+    borderColor: 'rgba(169,156,255,0.20)',
+    transform: [{ rotate: '-18deg' }],
+  },
+  orbitDot: {
+    position: 'absolute',
+    top: 110,
+    left: 93,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.secondary,
+    opacity: 0.8,
   },
   scroll: {
     flexGrow: 1,

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useState } from 'react';
 
 import { palette, radius, spacing, touch, typography } from '@/theme';
 
@@ -30,8 +31,9 @@ export function SearchField({
   onSubmit,
   autoFocus = false,
 }: SearchFieldProps) {
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, focused && styles.fieldFocused]}>
       <Icon name="search" size={20} color={palette.outline} />
       <TextInput
         style={styles.input}
@@ -44,6 +46,8 @@ export function SearchField({
         returnKeyType="search"
         onSubmitEditing={onSubmit}
         autoFocus={autoFocus}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         accessibilityLabel={placeholder}
         clearButtonMode="never"
       />
@@ -73,6 +77,12 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: palette.outlineVariant,
+  },
+  fieldFocused: {
+    backgroundColor: 'rgba(169,156,255,0.12)',
+    borderColor: palette.primary,
+    borderWidth: 2,
+    boxShadow: '0 0 0 3px rgba(169,156,255,0.14)',
   },
   input: {
     flex: 1,

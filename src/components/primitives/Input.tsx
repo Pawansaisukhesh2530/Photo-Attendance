@@ -56,6 +56,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       <View
         style={[
           styles.field,
+          focused && styles.fieldFocused,
           { borderColor, borderWidth: focused || error ? 2 : 1 },
         ]}
       >
@@ -128,6 +129,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.075)',
     borderRadius: radius.card,
     borderCurve: 'continuous',
+  },
+  fieldFocused: {
+    backgroundColor: 'rgba(169,156,255,0.12)',
+    boxShadow: '0 0 0 3px rgba(169,156,255,0.14)',
   },
   input: {
     flex: 1,
