@@ -27,25 +27,16 @@ export function GlassSurface({
       <LinearGradient
         pointerEvents="none"
         colors={[
-          'rgba(255,255,255,0.22)',
-          'rgba(255,255,255,0.025)',
-          'rgba(84,205,255,0.085)',
+          'rgba(255,255,255,0.11)',
+          'rgba(255,255,255,0.018)',
+          'rgba(119,96,255,0.045)',
         ]}
-        locations={[0, 0.42, 1]}
+        locations={[0, 0.46, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.085)', 'rgba(255,255,255,0)']}
-        locations={[0.18, 0.5, 0.82]}
-        start={{ x: 0, y: 1 }}
-        end={{ x: 1, y: 0 }}
-        style={StyleSheet.absoluteFill}
-      />
       <View pointerEvents="none" style={styles.specularEdge} />
-      <View pointerEvents="none" style={styles.topHighlight} />
       {children}
     </>
   );
@@ -84,7 +75,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fallback: {
-    backgroundColor: 'rgba(8, 15, 28, 0.44)',
+    backgroundColor: 'rgba(12, 16, 29, 0.60)',
   },
   specularEdge: {
     position: 'absolute',
@@ -93,14 +84,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  topHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 20,
-    right: 20,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.42)',
+    borderColor: 'rgba(255,255,255,0.15)',
   },
 });

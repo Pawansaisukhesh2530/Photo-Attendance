@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { AuthGuard, GlassSurface, LiquidTabIcon } from '@/components';
+import { AuthGuard, GlassSurface, Icon } from '@/components';
 import { fontFamilies, palette, spacing } from '@/theme';
 
 /**
@@ -39,35 +39,35 @@ export default function FacultyLayout() {
           name="dashboard"
           options={{
             title: 'Today',
-            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="dashboard" color={color} focused={focused} />,
+            tabBarIcon: ({ color }) => <Icon name="dashboard" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="classes"
           options={{
             title: 'Classes',
-            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="classes" color={color} focused={focused} />,
+            tabBarIcon: ({ color }) => <Icon name="classes" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="students"
           options={{
             title: 'Students',
-            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="students" color={color} focused={focused} />,
+            tabBarIcon: ({ color }) => <Icon name="students" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="history"
           options={{
             title: 'History',
-            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="history" color={color} focused={focused} />,
+            tabBarIcon: ({ color }) => <Icon name="history" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="reports"
           options={{
             title: 'Reports',
-            tabBarIcon: ({ color, focused }) => <LiquidTabIcon name="reports" color={color} focused={focused} />,
+            tabBarIcon: ({ color }) => <Icon name="reports" size={22} color={color} />,
           }}
         />
 
