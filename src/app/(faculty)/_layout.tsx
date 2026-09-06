@@ -30,7 +30,7 @@ export default function FacultyLayout() {
           tabBarActiveTintColor: palette.primary,
           tabBarInactiveTintColor: palette.onSurfaceVariant,
           tabBarStyle: styles.tabBar,
-          tabBarBackground: () => <BlurView intensity={45} tint="light" style={StyleSheet.absoluteFill} />,
+          tabBarBackground: () => <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFill} />,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
           sceneStyle: { backgroundColor: palette.surfaceContainerLow },

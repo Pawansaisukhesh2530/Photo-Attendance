@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minHeight: touch.comfortable,
     paddingHorizontal: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.46)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: palette.outlineVariant,

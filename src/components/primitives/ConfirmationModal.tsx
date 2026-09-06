@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     padding: spacing.lg,
-    backgroundColor: 'rgba(255,255,255,0.84)',
+    backgroundColor: 'rgba(20,24,43,0.94)',
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: palette.outlineVariant,

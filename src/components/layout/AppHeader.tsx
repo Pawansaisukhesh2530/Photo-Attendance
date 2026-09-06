@@ -53,7 +53,7 @@ export function AppHeader({
         styles.container,
         {
           paddingTop: insets.top,
-          backgroundColor: transparent ? 'transparent' : 'rgba(255,255,255,0.52)',
+          backgroundColor: transparent ? 'transparent' : 'rgba(10,13,28,0.68)',
           borderBottomWidth: transparent ? 0 : StyleSheet.hairlineWidth * 2,
         },
       ]}

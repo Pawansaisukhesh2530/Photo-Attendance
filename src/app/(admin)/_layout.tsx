@@ -40,7 +40,7 @@ export default function AdminLayout() {
           // Removed rather than hidden on desktop: `display: none` would still reserve layout and
           // still register in the accessibility tree as a second, redundant navigation.
           tabBarStyle: isExpanded ? styles.hidden : styles.tabBar,
-          tabBarBackground: () => <BlurView intensity={45} tint="light" style={StyleSheet.absoluteFill} />,
+          tabBarBackground: () => <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFill} />,
           tabBarButton: isExpanded ? () => null : undefined,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,

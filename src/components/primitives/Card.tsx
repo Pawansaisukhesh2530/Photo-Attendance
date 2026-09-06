@@ -54,7 +54,7 @@ export function Card({
 
   if (!onPress) {
     return (
-      <BlurView intensity={32} tint="light" style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
+      <BlurView intensity={45} tint="dark" style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
         {content}
       </BlurView>
     );
@@ -69,7 +69,7 @@ export function Card({
       testID={testID}
       style={base}
     >
-      <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} />
       {content}
     </AnimatedPressable>
   );

@@ -188,7 +188,7 @@ export function SelectionSheet({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(20,24,43,0.92)',
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
     paddingTop: spacing.md,

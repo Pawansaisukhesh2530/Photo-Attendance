@@ -80,14 +80,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <LinearGradient colors={['#e8eaff', '#f5edff', '#e4f6ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+          <LinearGradient colors={['#070914', '#12102b', '#071b2a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
           <ToastProvider>
             {/*
               Dark glyphs on our light surface. Under SDK 57 edge-to-edge the bar is
               translucent by default, so no background colour is set here — screen
               content shows through, which is why AppHeader owns the top inset.
             */}
-            <StatusBar style="dark" />
+            <StatusBar style="light" />
             <Stack
               screenOptions={{
                 headerShown: false,
