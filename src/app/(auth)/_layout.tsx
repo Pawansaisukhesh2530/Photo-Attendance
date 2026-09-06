@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 
 import { GuestGuard } from '@/components';
-import { palette } from '@/theme';
 
 export default function AuthLayout() {
   return (
@@ -9,7 +8,7 @@ export default function AuthLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: palette.surface },
+          contentStyle: { backgroundColor: 'transparent' },
         }}
       >
         <Stack.Screen name="login" />

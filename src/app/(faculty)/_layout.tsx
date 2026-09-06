@@ -32,7 +32,7 @@ export default function FacultyLayout() {
           tabBarBackground: () => <GlassSurface intensity={80} style={StyleSheet.absoluteFill} />,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
-          sceneStyle: { backgroundColor: palette.surfaceContainerLow },
+          sceneStyle: { backgroundColor: 'transparent' },
         }}
       >
         <Tabs.Screen

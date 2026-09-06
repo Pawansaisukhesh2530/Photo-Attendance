@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
 
-import { palette } from '@/theme';
 
 /**
  * Nested stack for the students area.
@@ -14,7 +13,7 @@ export default function StudentsStackLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: palette.surfaceContainerLow },
+        contentStyle: { backgroundColor: 'transparent' },
         animation: 'slide_from_right',
       }}
     >

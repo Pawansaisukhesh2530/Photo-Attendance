@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
 
-import { palette } from '@/theme';
 
 /**
  * Faculty management stack.
@@ -14,7 +13,7 @@ export default function AdminFacultyLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: palette.surfaceContainerLow },
+        contentStyle: { backgroundColor: 'transparent' },
         animation: 'slide_from_right',
       }}
     >

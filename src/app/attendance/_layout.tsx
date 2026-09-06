@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 
 import { AuthGuard } from '@/components';
-import { palette } from '@/theme';
 
 /**
  * The attendance capture flow.
@@ -22,7 +21,7 @@ export default function AttendanceLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: palette.surfaceContainerLow },
+          contentStyle: { backgroundColor: 'transparent' },
           animation: 'slide_from_right',
         }}
       >

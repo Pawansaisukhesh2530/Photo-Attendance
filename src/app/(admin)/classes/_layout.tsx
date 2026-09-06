@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
 
-import { palette } from '@/theme';
 
 /** Class catalogue stack. List is the tab root; detail and the create form push on top. */
 export default function AdminClassesLayout() {
@@ -8,7 +7,7 @@ export default function AdminClassesLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: palette.surfaceContainerLow },
+        contentStyle: { backgroundColor: 'transparent' },
         animation: 'slide_from_right',
       }}
     >

@@ -43,7 +43,7 @@ export default function AdminLayout() {
           tabBarButton: isExpanded ? () => null : undefined,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
-          sceneStyle: { backgroundColor: palette.surfaceContainerLow },
+          sceneStyle: { backgroundColor: 'transparent' },
         }}
       >
         <Tabs.Screen

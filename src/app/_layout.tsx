@@ -1,10 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { enableScreens } from 'react-native-screens';
@@ -13,7 +13,20 @@ import { ToastProvider } from '@/components';
 import { useAuthStore, wireAuthToApiClient } from '@/store/authStore';
 import { usePreferencesStore } from '@/store/preferences';
 import { queryClient } from '@/store/queryClient';
-import { useAppFonts } from '@/theme';
+import { palette, useAppFonts } from '@/theme';
+
+const glassNavigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: palette.primary,
+    background: 'transparent',
+    card: 'transparent',
+    text: palette.onSurface,
+    border: palette.outlineVariant,
+    notification: palette.error,
+  },
+};
 
 /*
   Detach blurred navigator screens on web.
@@ -80,7 +93,10 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <LinearGradient colors={['#070914', '#12102b', '#071b2a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+          <LinearGradient colors={['#040714', '#1a0d3a', '#05283b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+          <View pointerEvents="none" style={[styles.ambientOrb, styles.orbViolet]} />
+          <View pointerEvents="none" style={[styles.ambientOrb, styles.orbCyan]} />
+          <ThemeProvider value={glassNavigationTheme}>
           <ToastProvider>
             {/*
               Dark glyphs on our light surface. Under SDK 57 edge-to-edge the bar is
@@ -111,9 +127,30 @@ export default function RootLayout() {
               />
             </Stack>
           </ToastProvider>
+          </ThemeProvider>
           </LinearGradient>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  ambientOrb: {
+    position: 'absolute',
+    width: 520,
+    height: 520,
+    borderRadius: 260,
+    opacity: 0.34,
+  },
+  orbViolet: {
+    top: -210,
+    right: -100,
+    backgroundColor: '#7048ff',
+  },
+  orbCyan: {
+    bottom: -260,
+    left: -150,
+    backgroundColor: '#00a6c8',
+  },
+});

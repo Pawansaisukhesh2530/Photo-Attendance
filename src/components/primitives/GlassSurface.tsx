@@ -1,7 +1,8 @@
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 export interface GlassSurfaceProps {
   children?: ReactNode;
@@ -21,6 +22,25 @@ export function GlassSurface({
   accessibilityLabel,
   testID,
 }: GlassSurfaceProps) {
+  const content = (
+    <>
+      <LinearGradient
+        pointerEvents="none"
+        colors={[
+          'rgba(255,255,255,0.20)',
+          'rgba(255,255,255,0.035)',
+          'rgba(119,96,255,0.10)',
+        ]}
+        locations={[0, 0.46, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View pointerEvents="none" style={styles.specularEdge} />
+      {children}
+    </>
+  );
+
   if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
     return (
       <GlassView
@@ -32,20 +52,20 @@ export function GlassSurface({
         accessibilityLabel={accessibilityLabel}
         testID={testID}
       >
-        {children}
+        {content}
       </GlassView>
     );
   }
 
   return (
     <BlurView
-      tint="dark"
+      tint="systemUltraThinMaterialDark"
       intensity={intensity}
-      style={[styles.surface, style]}
+      style={[styles.surface, style, styles.fallback]}
       accessibilityLabel={accessibilityLabel}
       testID={testID}
     >
-      {children}
+      {content}
     </BlurView>
   );
 }
@@ -53,5 +73,17 @@ export function GlassSurface({
 const styles = StyleSheet.create({
   surface: {
     overflow: 'hidden',
+  },
+  fallback: {
+    backgroundColor: 'rgba(8, 11, 28, 0.52)',
+  },
+  specularEdge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
   },
 });
