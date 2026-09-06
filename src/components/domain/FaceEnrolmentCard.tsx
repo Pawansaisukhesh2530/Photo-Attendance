@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { studentService } from '@/services';
 import { palette, radius, spacing } from '@/theme';
@@ -8,6 +9,7 @@ import type { FaceImageInfo } from '@/types';
 
 import { Button } from '@/components/primitives/Button';
 import { Card } from '@/components/primitives/Card';
+import { ConfirmationModal } from '@/components/primitives/ConfirmationModal';
 import { Icon } from '@/components/primitives/Icon';
 import { Text } from '@/components/primitives/Text';
 
@@ -42,6 +44,8 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
   const [images, setImages] = useState<FaceImageInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [preview, setPreview] = useState<FaceImageInfo | null>(null);
+  const [deleting, setDeleting] = useState<FaceImageInfo | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -109,6 +113,19 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
     }
   };
 
+  const deleteImage = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await studentService.revokeFaceImage(studentId, deleting.id);
+      setDeleting(null);
+      setMessage('Photo deleted from this enrollment.');
+      await load();
+    } catch {
+      setMessage('Could not delete this photo. Check the backend connection and try again.');
+    } finally { setBusy(false); }
+  };
+
   return (
     <Card>
       <View style={styles.header}>
@@ -148,6 +165,10 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
               <Text variant="labelMd" color={palette.onSurfaceVariant}>
                 {reasonLabel(image)}
               </Text>
+              <View style={styles.actions}>
+                <Button label="Preview" icon="gallery" variant="ghost" size="sm" onPress={() => setPreview(image)} />
+                <Button label="Delete" icon="delete" variant="ghost" size="sm" onPress={() => setDeleting(image)} />
+              </View>
             </View>
           </View>
         );
@@ -176,6 +197,30 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
           onPress={() => void reprocess()}
         />
       ) : null}
+
+      <Modal visible={Boolean(preview)} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+        <View style={styles.previewBackdrop}>
+          <View style={styles.previewCard}>
+            <View style={styles.previewHeader}>
+              <Text variant="titleLg">Enrollment photo preview</Text>
+              <Pressable accessibilityLabel="Close preview" onPress={() => setPreview(null)} style={styles.close}>
+                <Icon name="close" size={24} color={palette.onSurface} />
+              </Pressable>
+            </View>
+            {preview ? <Image source={{ uri: preview.imageUrl }} contentFit="contain" style={styles.previewImage} /> : null}
+          </View>
+        </View>
+      </Modal>
+      <ConfirmationModal
+        visible={Boolean(deleting)}
+        title="Delete enrollment photo?"
+        message="This photo will no longer be used for face recognition."
+        confirmLabel="Delete photo"
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => void deleteImage()}
+        confirmLoading={busy}
+        tone="danger"
+      />
     </Card>
   );
 }
@@ -211,4 +256,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceContainerHigh,
   },
   numberWellReady: { backgroundColor: palette.secondaryContainer },
+  actions: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
+  previewBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: spacing.lg },
+  previewCard: { backgroundColor: palette.surface, borderRadius: radius.xl, padding: spacing.md, maxHeight: '85%' },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  close: { padding: spacing.xs },
+  previewImage: { width: '100%', height: 520, borderRadius: radius.lg, backgroundColor: palette.surfaceContainerHigh },
 });

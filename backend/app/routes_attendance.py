@@ -23,8 +23,8 @@ from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass
                      StudentFaceImage, Student, TwinReview, User, InstitutionSettings)
 from .schemas import (AmendmentRequest, AttendanceRecordOut, FinalizeRequest, Page,
                       PanoramaAttach, SessionCreate, SessionOut)
-from .security import (create_image_token, create_panorama_token, current_user, require_roles,
-                       verify_image_token, verify_panorama_token)
+from .security import (create_face_image_token, create_image_token, create_panorama_token, current_user, optional_current_user, require_roles,
+                       verify_face_image_token, verify_image_token, verify_panorama_token)
 from .storage import ObjectStorage, validate_image
 from .worker import process_attendance, process_face_enrolment
 
@@ -87,11 +87,13 @@ async def enrol_faces(student_id: str, files: list[UploadFile] = File(...), db: 
 @router.get("/students/{student_id}/face-images")
 def list_faces(student_id:str,db:Session=Depends(get_db),_:User=Depends(require_roles(Role.ADMIN))):
     rows=db.scalars(select(StudentFaceImage).where(StudentFaceImage.student_id==student_id).order_by(StudentFaceImage.created_at.desc())).all()
-    return {"items":[{"id":r.id,"checksum":r.checksum,"width":r.width,"height":r.height,"quality":r.quality,"revoked_at":r.revoked_at,"image_url":f"/api/v1/students/{student_id}/face-images/{r.id}/content"} for r in rows]}
+    return {"items":[{"id":r.id,"checksum":r.checksum,"width":r.width,"height":r.height,"quality":r.quality,"revoked_at":r.revoked_at,"image_url":f"/api/v1/students/{student_id}/face-images/{r.id}/content?token={create_face_image_token(student_id,r.id)}"} for r in rows]}
 
 
 @router.get("/students/{student_id}/face-images/{image_id}/content",include_in_schema=False)
-def face_image_content(student_id:str,image_id:str,db:Session=Depends(get_db),_:User=Depends(require_roles(Role.ADMIN))):
+def face_image_content(student_id:str,image_id:str,token: str | None = Query(default=None),db:Session=Depends(get_db),actor: User | None = Depends(optional_current_user)):
+    if token: verify_face_image_token(token, student_id, image_id)
+    elif not actor or actor.role != Role.ADMIN: raise Problem(401, "Authentication required", "Provide a bearer access token or image token.")
     row=db.get(StudentFaceImage,image_id)
     if not row or row.student_id!=student_id:raise Problem(404,"Face image not found","The face image does not exist.")
     return Response(ObjectStorage().get(row.object_key),media_type=row.mime_type,headers={"Cache-Control":"private, no-store"})

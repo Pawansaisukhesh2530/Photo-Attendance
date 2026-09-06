@@ -81,6 +81,7 @@ const ICONS = {
   stop: 'stop',
   retake: 'refresh',
   gallery: 'photo-library',
+  delete: 'delete-outline',
   flash: 'flash-on',
   flashOff: 'flash-off',
   flipCamera: 'flip-camera-ios',
