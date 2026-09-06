@@ -36,6 +36,7 @@ export default function AdminStudentProfileScreen() {
             { label: title },
           ]}
           onBack={() => router.back()}
+          headerOnly
           {...(settings
             ? {
                 institutionName: settings.institutionName,

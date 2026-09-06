@@ -29,6 +29,8 @@ export interface AdminScaffoldProps {
   institutionName?: string;
   institutionCode?: string;
   children: ReactNode;
+  /** Render only the navigation/header chrome when a screen owns the content body. */
+  headerOnly?: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export function AdminScaffold({
   institutionName = 'EduTrace Pro',
   institutionCode = 'EDU',
   children,
+  headerOnly = false,
 }: AdminScaffoldProps) {
   const { isExpanded } = useResponsive();
   const insets = useSafeAreaInsets();
@@ -119,16 +122,16 @@ export function AdminScaffold({
           </View>
 
           {/* Content is capped: a data table stretched across a very wide monitor is unreadable. */}
-          <View style={styles.desktopBody}>
+          {!headerOnly ? <View style={styles.desktopBody}>
             <View style={styles.desktopConstrain}>{children}</View>
-          </View>
+          </View> : null}
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.mobileRoot}>
+    <View style={headerOnly ? styles.headerOnlyRoot : styles.mobileRoot}>
       <View style={[styles.mobileHeader, { paddingTop: insets.top + spacing.sm }]}>
         {onBack ? (
           <AnimatedPressable
@@ -156,7 +159,7 @@ export function AdminScaffold({
         {action}
       </View>
 
-      <View style={styles.mobileBody}>{children}</View>
+      {!headerOnly ? <View style={styles.mobileBody}>{children}</View> : null}
     </View>
   );
 }
@@ -216,6 +219,9 @@ const styles = StyleSheet.create({
   },
   mobileRoot: {
     flex: 1,
+    backgroundColor: palette.surfaceContainerLow,
+  },
+  headerOnlyRoot: {
     backgroundColor: palette.surfaceContainerLow,
   },
   mobileHeader: {
