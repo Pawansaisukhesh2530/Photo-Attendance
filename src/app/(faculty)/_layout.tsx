@@ -1,8 +1,7 @@
 import { Tabs } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import { StyleSheet } from 'react-native';
 
-import { AuthGuard, Icon } from '@/components';
+import { AuthGuard, GlassSurface, Icon } from '@/components';
 import { fontFamilies, palette, spacing } from '@/theme';
 
 /**
@@ -30,7 +29,7 @@ export default function FacultyLayout() {
           tabBarActiveTintColor: palette.primary,
           tabBarInactiveTintColor: palette.onSurfaceVariant,
           tabBarStyle: styles.tabBar,
-          tabBarBackground: () => <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFill} />,
+          tabBarBackground: () => <GlassSurface intensity={80} style={StyleSheet.absoluteFill} />,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
           sceneStyle: { backgroundColor: palette.surfaceContainerLow },

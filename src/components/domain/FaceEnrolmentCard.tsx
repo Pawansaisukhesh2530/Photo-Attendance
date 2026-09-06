@@ -10,6 +10,7 @@ import { palette, radius, spacing } from '@/theme';
 import type { FaceImageInfo } from '@/types';
 
 import { Button } from '@/components/primitives/Button';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Card } from '@/components/primitives/Card';
 import { ConfirmationModal } from '@/components/primitives/ConfirmationModal';
 import { Icon } from '@/components/primitives/Icon';
@@ -201,6 +202,7 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
       <Modal visible={Boolean(preview)} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <View style={styles.previewBackdrop}>
           <View style={styles.previewCard}>
+            <GlassSurface intensity={90} style={StyleSheet.absoluteFill} />
             <View style={styles.previewHeader}>
               <Text variant="titleLg">Enrollment photo preview</Text>
               <Pressable accessibilityLabel="Close preview" onPress={() => setPreview(null)} style={styles.close}>
@@ -258,7 +260,7 @@ const styles = StyleSheet.create({
   numberWellReady: { backgroundColor: palette.secondaryContainer },
   actions: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
   previewBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: spacing.lg },
-  previewCard: { backgroundColor: palette.surface, borderRadius: radius.xl, padding: spacing.md, maxHeight: '85%' },
+  previewCard: { backgroundColor: 'transparent', borderRadius: radius.xl, borderWidth: 1, borderColor: palette.outlineVariant, overflow: 'hidden', padding: spacing.md, maxHeight: '85%' },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   close: { padding: spacing.xs },
   previewImage: { width: '100%', height: 520, borderRadius: radius.lg, backgroundColor: palette.surfaceContainerHigh },

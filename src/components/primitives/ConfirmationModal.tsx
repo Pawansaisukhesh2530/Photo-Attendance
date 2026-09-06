@@ -4,6 +4,7 @@ import { palette, radius, shadows, spacing } from '@/theme';
 
 import { AnimatedOverlay } from './AnimatedOverlay';
 import { Button } from './Button';
+import { GlassSurface } from './GlassSurface';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
@@ -64,6 +65,7 @@ export function ConfirmationModal({
       contentStyle={styles.centerInset}
     >
       <View style={[styles.dialog, shadows.raised]} accessibilityRole="alert">
+          <GlassSurface intensity={88} style={StyleSheet.absoluteFill} />
           <View style={[styles.iconWell, { backgroundColor: tokens.well }]}>
             <Icon name={icon ?? tokens.icon} size={24} color={tokens.accent} />
           </View>
@@ -107,10 +109,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     padding: spacing.lg,
-    backgroundColor: 'rgba(20,24,43,0.94)',
+    backgroundColor: 'transparent',
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: palette.outlineVariant,
+    overflow: 'hidden',
   },
   iconWell: {
     width: 48,

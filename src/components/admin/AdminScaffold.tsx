@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/primitives/Icon';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
 import { palette, spacing, touch, useResponsive } from '@/theme';
@@ -79,6 +80,7 @@ export function AdminScaffold({
 
         <View style={styles.desktopMain}>
           <View style={[styles.desktopHeader, { paddingTop: insets.top + spacing.md }]}>
+            <GlassSurface intensity={78} style={StyleSheet.absoluteFill} />
             {breadcrumbs && breadcrumbs.length > 0 ? (
               <View style={styles.crumbs}>
                 {breadcrumbs.map((crumb, index) => {
@@ -133,6 +135,7 @@ export function AdminScaffold({
   return (
     <View style={headerOnly ? styles.headerOnlyRoot : styles.mobileRoot}>
       <View style={[styles.mobileHeader, { paddingTop: insets.top + spacing.sm }]}>
+        <GlassSurface intensity={78} style={StyleSheet.absoluteFill} />
         {onBack ? (
           <AnimatedPressable
             onPress={onBack}
@@ -180,7 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     gap: spacing.sm,
-    backgroundColor: 'rgba(10,13,28,0.68)',
+    backgroundColor: 'transparent',
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
     borderBottomColor: palette.outlineVariant,
   },
@@ -230,7 +233,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.screen,
     paddingBottom: spacing.sm,
-    backgroundColor: 'rgba(10,13,28,0.68)',
+    backgroundColor: 'transparent',
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
     borderBottomColor: palette.outlineVariant,
   },

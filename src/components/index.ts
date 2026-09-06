@@ -14,6 +14,7 @@ export {
   type AnimatedPressableProps,
 } from './primitives/Pressable';
 export { Card, type CardProps } from './primitives/Card';
+export { GlassSurface, type GlassSurfaceProps } from './primitives/GlassSurface';
 export { Checkbox, type CheckboxProps } from './primitives/Checkbox';
 export { ConfirmationModal, type ConfirmationModalProps } from './primitives/ConfirmationModal';
 export {

@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedOverlay } from '@/components/primitives/AnimatedOverlay';
 import { Avatar } from '@/components/primitives/Avatar';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Icon, type IconName } from '@/components/primitives/Icon';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
@@ -94,6 +95,7 @@ export function StatusEditSheet({
       <View
         style={[styles.sheet, shadows.raised, { paddingBottom: insets.bottom + spacing.md }]}
       >
+          <GlassSurface intensity={88} style={StyleSheet.absoluteFill} />
           <View style={styles.handle} />
 
           {/* Student */}
@@ -234,12 +236,15 @@ export function StatusEditSheet({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: palette.surfaceContainerLowest,
+    backgroundColor: 'transparent',
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: palette.outlineVariant,
+    overflow: 'hidden',
   },
   handle: {
     alignSelf: 'center',

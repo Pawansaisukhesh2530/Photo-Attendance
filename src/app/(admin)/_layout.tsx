@@ -1,8 +1,7 @@
 import { Tabs } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import { StyleSheet } from 'react-native';
 
-import { AuthGuard, Icon } from '@/components';
+import { AuthGuard, GlassSurface, Icon } from '@/components';
 import { fontFamilies, palette, spacing, useResponsive } from '@/theme';
 
 /**
@@ -40,7 +39,7 @@ export default function AdminLayout() {
           // Removed rather than hidden on desktop: `display: none` would still reserve layout and
           // still register in the accessibility tree as a second, redundant navigation.
           tabBarStyle: isExpanded ? styles.hidden : styles.tabBar,
-          tabBarBackground: () => <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFill} />,
+          tabBarBackground: () => <GlassSurface intensity={80} style={StyleSheet.absoluteFill} />,
           tabBarButton: isExpanded ? () => null : undefined,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,

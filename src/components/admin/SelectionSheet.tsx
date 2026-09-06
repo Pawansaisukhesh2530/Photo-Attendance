@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedOverlay } from '@/components/primitives/AnimatedOverlay';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Icon, type IconName } from '@/components/primitives/Icon';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { SearchField } from '@/components/primitives/SearchField';
@@ -92,6 +93,7 @@ export function SelectionSheet({
       accessibilityLabel={title}
     >
       <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
+        <GlassSurface intensity={88} style={StyleSheet.absoluteFill} />
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text variant="titleLg" color={palette.onSurface}>
@@ -188,9 +190,12 @@ export function SelectionSheet({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: 'rgba(20,24,43,0.92)',
+    backgroundColor: 'transparent',
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: palette.outlineVariant,
+    overflow: 'hidden',
     paddingTop: spacing.md,
   },
   header: {

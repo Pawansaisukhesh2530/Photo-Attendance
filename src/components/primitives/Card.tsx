@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { BlurView } from 'expo-blur';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette, radius, shadows, spacing } from '@/theme';
 
 import { AnimatedPressable } from './Pressable';
+import { GlassSurface } from './GlassSurface';
 
 export interface CardProps {
   children: ReactNode;
@@ -54,9 +54,9 @@ export function Card({
 
   if (!onPress) {
     return (
-      <BlurView intensity={45} tint="dark" style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
+      <GlassSurface intensity={70} style={base} testID={testID} accessibilityLabel={accessibilityLabel}>
         {content}
-      </BlurView>
+      </GlassSurface>
     );
   }
 
@@ -69,7 +69,7 @@ export function Card({
       testID={testID}
       style={base}
     >
-      <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} />
+      <GlassSurface interactive intensity={70} style={StyleSheet.absoluteFill} />
       {content}
     </AnimatedPressable>
   );
@@ -77,7 +77,7 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: palette.surfaceContainerLowest,
+    backgroundColor: 'transparent',
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: palette.outlineVariant,

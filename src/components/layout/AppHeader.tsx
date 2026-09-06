@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/primitives/Icon';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Text } from '@/components/primitives/Text';
 import { palette, spacing, touch } from '@/theme';
 
@@ -53,11 +54,12 @@ export function AppHeader({
         styles.container,
         {
           paddingTop: insets.top,
-          backgroundColor: transparent ? 'transparent' : 'rgba(10,13,28,0.68)',
+          backgroundColor: 'transparent',
           borderBottomWidth: transparent ? 0 : StyleSheet.hairlineWidth * 2,
         },
       ]}
     >
+      {!transparent ? <GlassSurface intensity={78} style={StyleSheet.absoluteFill} /> : null}
       <View style={styles.row}>
         {onBack ? (
           <Pressable

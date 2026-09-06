@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedOverlay } from '@/components/primitives/AnimatedOverlay';
 import { Avatar } from '@/components/primitives/Avatar';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Button } from '@/components/primitives/Button';
 import { Icon } from '@/components/primitives/Icon';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
@@ -121,6 +122,7 @@ export function TwinReviewModal({
         style={[styles.sheet, shadows.raised, { paddingBottom: insets.bottom }]}
         accessibilityRole="alert"
       >
+          <GlassSurface intensity={90} style={StyleSheet.absoluteFill} />
           {/* Header — Stitch tints this tertiary-fixed-dim. */}
           <View style={styles.header}>
             <Icon name="review" size={22} color={palette.onTertiaryFixedVariant} />
@@ -244,9 +246,11 @@ export function TwinReviewModal({
 const styles = StyleSheet.create({
   sheet: {
     maxHeight: '94%',
-    backgroundColor: palette.surfaceContainerLowest,
+    backgroundColor: 'transparent',
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: palette.outlineVariant,
     overflow: 'hidden',
   },
   header: {

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedOverlay } from '@/components/primitives/AnimatedOverlay';
 import { Button } from '@/components/primitives/Button';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { Icon } from '@/components/primitives/Icon';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
@@ -95,6 +96,7 @@ export function AmendReasonSheet({
       <View
         style={[styles.sheet, shadows.raised, { paddingBottom: insets.bottom + spacing.md }]}
       >
+          <GlassSurface intensity={88} style={StyleSheet.absoluteFill} />
           <View style={styles.handle} />
 
           <View style={styles.header}>
@@ -217,12 +219,15 @@ export function AmendReasonSheet({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: palette.surfaceContainerLowest,
+    backgroundColor: 'transparent',
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: palette.outlineVariant,
+    overflow: 'hidden',
   },
   handle: {
     alignSelf: 'center',

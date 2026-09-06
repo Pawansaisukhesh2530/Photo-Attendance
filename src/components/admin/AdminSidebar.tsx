@@ -3,6 +3,7 @@ import { memo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Icon } from '@/components/primitives/Icon';
+import { GlassSurface } from '@/components/primitives/GlassSurface';
 import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
 import { palette, radius, spacing, touch } from '@/theme';
@@ -78,6 +79,7 @@ const NavItem = memo(function NavItem({
 export function AdminSidebar({ active, institutionName, institutionCode }: AdminSidebarProps) {
   return (
     <View style={styles.sidebar}>
+      <GlassSurface intensity={82} style={StyleSheet.absoluteFill} />
       <View style={styles.brand}>
         <View style={styles.brandMark}>
           <Text variant="labelMd" color={palette.onPrimary}>
@@ -122,7 +124,7 @@ export function AdminSidebar({ active, institutionName, institutionCode }: Admin
 const styles = StyleSheet.create({
   sidebar: {
     width: ADMIN_SIDEBAR_WIDTH,
-    backgroundColor: 'rgba(9,12,26,0.72)',
+    backgroundColor: 'transparent',
     borderRightWidth: StyleSheet.hairlineWidth * 2,
     borderRightColor: palette.outlineVariant,
   },
