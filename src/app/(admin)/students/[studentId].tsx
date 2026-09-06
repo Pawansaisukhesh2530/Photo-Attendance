@@ -23,32 +23,28 @@ export default function AdminStudentProfileScreen() {
   const { data: settings } = useInstitutionSettings();
 
   return (
-    <StudentProfileView
-      studentId={studentId}
-      header={
-        <AdminScaffold
-          active="students"
-          title={title}
-          {...(subtitle ? { subtitle } : {})}
-          breadcrumbs={[
-            { label: 'Administration', href: '/(admin)/dashboard' },
-            { label: 'Students', href: '/(admin)/students' },
-            { label: title },
-          ]}
-          onBack={() => router.back()}
-          headerOnly
-          {...(settings
-            ? {
-                institutionName: settings.institutionName,
-                institutionCode: settings.institutionCode,
-              }
-            : {})}
-        >
-          {null}
-        </AdminScaffold>
-      }
-      onNotFoundAction={() => router.back()}
-      notFoundActionLabel="Back to students"
-    />
+    <AdminScaffold
+      active="students"
+      title={title}
+      {...(subtitle ? { subtitle } : {})}
+      breadcrumbs={[
+        { label: 'Administration', href: '/(admin)/dashboard' },
+        { label: 'Students', href: '/(admin)/students' },
+        { label: title },
+      ]}
+      onBack={() => router.back()}
+      {...(settings
+        ? {
+            institutionName: settings.institutionName,
+            institutionCode: settings.institutionCode,
+          }
+        : {})}
+    >
+      <StudentProfileView
+        studentId={studentId}
+        onNotFoundAction={() => router.back()}
+        notFoundActionLabel="Back to students"
+      />
+    </AdminScaffold>
   );
 }
