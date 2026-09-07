@@ -325,8 +325,17 @@ export default function CameraScreen() {
     try {
       const available = await DeviceMotion.isAvailableAsync();
       if (!available) throw new Error('Motion sensing is not available on this device.');
-      const motionPermission = await DeviceMotion.requestPermissionsAsync();
-      if (!motionPermission.granted) throw new Error('Motion access is required for guided panorama capture.');
+
+      // iOS protects motion data with a dedicated runtime permission. Expo's Android
+      // implementation maps the same method to ACTIVITY_RECOGNITION ("Physical activity"),
+      // although the rotation-vector and accelerometer sensors used by this sweep do not require
+      // it. Asking on Android can therefore return denied and block a sensor that is available.
+      if (Platform.OS === 'ios') {
+        const motionPermission = await DeviceMotion.requestPermissionsAsync();
+        if (!motionPermission.granted) {
+          throw new Error('Motion access is required. Allow Motion & Fitness in Settings.');
+        }
+      }
 
       const captureFrame = async (): Promise<void> => {
         if (panoramaCaptureLockRef.current || !cameraRef.current) return;
