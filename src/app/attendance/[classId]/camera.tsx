@@ -313,7 +313,7 @@ export default function CameraScreen() {
     setPanoramaSweepDegrees(0);
     setPanoramaFrameCount(0);
     setPanoramaDirection(null);
-    setPanoramaGuidance('HOLD_STEADY');
+    setPanoramaGuidance('CAPTURING');
     setPanoramaHorizonError(0);
     panoramaFrameUrisRef.current = [];
     panoramaLastYawRef.current = null;
@@ -364,6 +364,12 @@ export default function CameraScreen() {
           panoramaCaptureLockRef.current = false;
         }
       };
+
+      // Capture the starting view directly from the user's tap. Requiring a sensor-derived
+      // stability window before frame one made some Android devices appear unresponsive when
+      // their rotation-rate or linear-acceleration stream was slow to settle. Every following
+      // frame still passes the full angle, horizon and stability gate below.
+      await captureFrame();
 
       DeviceMotion.setUpdateInterval(60);
       panoramaSubscriptionRef.current = DeviceMotion.addListener((measurement) => {
@@ -986,7 +992,7 @@ export default function CameraScreen() {
             : captureMode === 'PANORAMA'
               ? recordingPanorama
                 ? `Pan slowly · ${Math.round((panoramaSweepDegrees / PANORAMA_SWEEP_DEGREES) * 100)}% complete`
-                : 'One guided sweep creates one panorama image'
+                : 'Tap the purple shutter to start the guided sweep'
               : photos.length === 0
                 ? 'Take 3–4 overlapping angles for a large classroom'
                 : `${photos.length} of 8 photos captured`}
