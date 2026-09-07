@@ -1,4 +1,9 @@
-import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
+import {
+  CameraView,
+  useCameraPermissions,
+  type CameraCapturedPicture,
+  type FlashMode,
+} from 'expo-camera';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { DeviceMotion } from 'expo-sensors';
@@ -34,12 +39,25 @@ const SHELL = '#121218';
  * measuring would cost a layout pass on every frame of the capture animation.
  */
 const HEADER_BAND = 64;
-const CONTROL_BAND = 240;
+const CONTROL_BAND = 330;
 const PREVIEW_CONTROL_BAND = 220;
 const PANORAMA_FRAME_COUNT = 7;
 const PANORAMA_STEP_DEGREES = 20;
 const PANORAMA_SWEEP_DEGREES = (PANORAMA_FRAME_COUNT - 1) * PANORAMA_STEP_DEGREES;
 const PANORAMA_TIMEOUT_MS = 45_000;
+const PANORAMA_STABLE_MS = 300;
+const PANORAMA_MAX_ROTATION_RATE = 8;
+const PANORAMA_MAX_ACCELERATION = 0.45;
+const PANORAMA_HORIZON_WARNING_DEGREES = 6;
+const PANORAMA_HORIZON_BLOCK_DEGREES = 12;
+
+type PanoramaGuidance = 'READY' | 'MOVE' | 'HOLD_STEADY' | 'LEVEL_PHONE' | 'CAPTURING';
+
+const ZOOM_PRESETS = [
+  { label: 'Wide', value: 0 },
+  { label: 'Near', value: 0.08 },
+  { label: 'Far', value: 0.16 },
+] as const;
 
 function shortestAngleDelta(current: number, previous: number): number {
   let delta = current - previous;
@@ -129,7 +147,13 @@ export default function CameraScreen() {
   const [capturing, setCapturing] = useState(false);
   const [recordingPanorama, setRecordingPanorama] = useState(false);
   const [panoramaSweepDegrees, setPanoramaSweepDegrees] = useState(0);
+  const [panoramaFrameCount, setPanoramaFrameCount] = useState(0);
   const [panoramaDirection, setPanoramaDirection] = useState<-1 | 1 | null>(null);
+  const [panoramaGuidance, setPanoramaGuidance] = useState<PanoramaGuidance>('READY');
+  const [panoramaHorizonError, setPanoramaHorizonError] = useState(0);
+  const [zoom, setZoom] = useState(0);
+  const [flashMode, setFlashMode] = useState<FlashMode>('off');
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const [submittingPanorama, setSubmittingPanorama] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const panoramaSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -139,6 +163,7 @@ export default function CameraScreen() {
   const panoramaTravelRef = useRef(0);
   const panoramaDirectionRef = useRef<-1 | 1 | null>(null);
   const panoramaCaptureLockRef = useRef(false);
+  const panoramaStableSinceRef = useRef<number | null>(null);
 
   const stopPanoramaSensors = useCallback((): void => {
     panoramaSubscriptionRef.current?.remove();
@@ -229,7 +254,10 @@ export default function CameraScreen() {
       stopPanoramaSensors();
       setPanoramaPreview(null);
       setPanoramaSweepDegrees(0);
+      setPanoramaFrameCount(0);
       setPanoramaDirection(null);
+      setPanoramaGuidance('READY');
+      setPanoramaHorizonError(0);
     }
     else setPhotos((current) => current.slice(0, -1));
     setError(null);
@@ -283,12 +311,16 @@ export default function CameraScreen() {
     setError(null);
     setRecordingPanorama(true);
     setPanoramaSweepDegrees(0);
+    setPanoramaFrameCount(0);
     setPanoramaDirection(null);
+    setPanoramaGuidance('HOLD_STEADY');
+    setPanoramaHorizonError(0);
     panoramaFrameUrisRef.current = [];
     panoramaLastYawRef.current = null;
     panoramaTravelRef.current = 0;
     panoramaDirectionRef.current = null;
     panoramaCaptureLockRef.current = false;
+    panoramaStableSinceRef.current = null;
 
     try {
       const available = await DeviceMotion.isAvailableAsync();
@@ -299,16 +331,19 @@ export default function CameraScreen() {
       const captureFrame = async (): Promise<void> => {
         if (panoramaCaptureLockRef.current || !cameraRef.current) return;
         panoramaCaptureLockRef.current = true;
+        panoramaStableSinceRef.current = null;
+        setPanoramaGuidance('CAPTURING');
         setCapturing(true);
         try {
           const frame = await cameraRef.current.takePictureAsync({
-            quality: 0.88,
+            quality: 0.94,
             base64: false,
             skipProcessing: Platform.OS === 'android',
           });
           if (!frame?.uri) throw new Error('A panorama view could not be saved.');
           panoramaFrameUrisRef.current.push(frame.uri);
           const count = panoramaFrameUrisRef.current.length;
+          setPanoramaFrameCount(count);
 
           if (count >= PANORAMA_FRAME_COUNT) {
             stopPanoramaSensors();
@@ -321,6 +356,8 @@ export default function CameraScreen() {
             } finally {
               setSubmittingPanorama(false);
             }
+          } else {
+            setPanoramaGuidance('MOVE');
           }
         } finally {
           setCapturing(false);
@@ -333,29 +370,65 @@ export default function CameraScreen() {
         const yawRadians = measurement.rotation?.alpha;
         if (typeof yawRadians !== 'number') return;
         const yaw = (yawRadians * 180) / Math.PI;
+        const roll = Math.abs((measurement.rotation.gamma * 180) / Math.PI);
+        const normalizedRoll = Math.min(90, Math.abs(((roll + 90) % 180) - 90));
+        setPanoramaHorizonError(Math.round(normalizedRoll));
         const previous = panoramaLastYawRef.current;
         panoramaLastYawRef.current = yaw;
 
-        if (previous === null) {
-          void captureFrame().catch((caught: unknown) => {
-            stopPanoramaSensors();
-            setRecordingPanorama(false);
-            setError(caught instanceof Error ? caught.message : 'The panorama could not start.');
-          });
+        if (previous !== null) {
+          panoramaTravelRef.current += shortestAngleDelta(yaw, previous);
+          if (!panoramaDirectionRef.current && Math.abs(panoramaTravelRef.current) >= 4) {
+            panoramaDirectionRef.current = panoramaTravelRef.current < 0 ? -1 : 1;
+            setPanoramaDirection(panoramaDirectionRef.current);
+          }
+        }
+
+        const direction = panoramaDirectionRef.current;
+        const progress = direction ? Math.max(0, panoramaTravelRef.current * direction) : 0;
+        setPanoramaSweepDegrees(Math.min(PANORAMA_SWEEP_DEGREES, Math.round(progress)));
+        const nextTarget = panoramaFrameUrisRef.current.length * PANORAMA_STEP_DEGREES;
+
+        if (progress < nextTarget || panoramaFrameUrisRef.current.length >= PANORAMA_FRAME_COUNT) {
+          panoramaStableSinceRef.current = null;
+          if (!panoramaCaptureLockRef.current) setPanoramaGuidance('MOVE');
           return;
         }
 
-        panoramaTravelRef.current += shortestAngleDelta(yaw, previous);
-        if (!panoramaDirectionRef.current && Math.abs(panoramaTravelRef.current) >= 4) {
-          panoramaDirectionRef.current = panoramaTravelRef.current < 0 ? -1 : 1;
-          setPanoramaDirection(panoramaDirectionRef.current);
+        if (normalizedRoll > PANORAMA_HORIZON_BLOCK_DEGREES) {
+          panoramaStableSinceRef.current = null;
+          setPanoramaGuidance('LEVEL_PHONE');
+          return;
         }
-        const direction = panoramaDirectionRef.current;
-        if (!direction) return;
-        const progress = Math.max(0, panoramaTravelRef.current * direction);
-        setPanoramaSweepDegrees(Math.min(PANORAMA_SWEEP_DEGREES, Math.round(progress)));
-        const nextTarget = panoramaFrameUrisRef.current.length * PANORAMA_STEP_DEGREES;
-        if (progress >= nextTarget && panoramaFrameUrisRef.current.length < PANORAMA_FRAME_COUNT) {
+
+        const rotationRate = measurement.rotationRate;
+        const angularVelocity = rotationRate
+          ? Math.sqrt(
+              rotationRate.alpha ** 2 + rotationRate.beta ** 2 + rotationRate.gamma ** 2,
+            )
+          : 0;
+        const acceleration = measurement.acceleration;
+        const accelerationMagnitude = acceleration
+          ? Math.sqrt(acceleration.x ** 2 + acceleration.y ** 2 + acceleration.z ** 2)
+          : 0;
+        const stable =
+          angularVelocity <= PANORAMA_MAX_ROTATION_RATE &&
+          accelerationMagnitude <= PANORAMA_MAX_ACCELERATION;
+
+        if (!stable) {
+          panoramaStableSinceRef.current = null;
+          setPanoramaGuidance('HOLD_STEADY');
+          return;
+        }
+
+        const now = Date.now();
+        if (panoramaStableSinceRef.current === null) {
+          panoramaStableSinceRef.current = now;
+          setPanoramaGuidance('HOLD_STEADY');
+          return;
+        }
+
+        if (now - panoramaStableSinceRef.current >= PANORAMA_STABLE_MS) {
           void captureFrame().catch((caught: unknown) => {
             stopPanoramaSensors();
             setRecordingPanorama(false);
@@ -636,6 +709,9 @@ export default function CameraScreen() {
         style={StyleSheet.absoluteFill}
         facing="back"
         mode="picture"
+        zoom={zoom}
+        flash={captureMode === 'STANDARD' ? flashMode : 'off'}
+        enableTorch={captureMode === 'PANORAMA' && torchEnabled}
         pictureSize={pictureSize}
         onCameraReady={() => void handleCameraReady()}
         onMountError={() =>
@@ -773,20 +849,91 @@ export default function CameraScreen() {
               <Text variant="bodyMd" color={palette.onPrimaryContainer}>
                 {captureMode === 'PANORAMA'
                   ? recordingPanorama
-                    ? `Continue turning ${panoramaDirection === -1 ? 'left' : panoramaDirection === 1 ? 'right' : 'in either direction'} until the guide reaches the end.`
-                    : 'Start at one side, tap once, then rotate slowly across the classroom.'
+                    ? panoramaGuidance === 'LEVEL_PHONE'
+                      ? 'Level the phone before the next view is captured.'
+                      : panoramaGuidance === 'HOLD_STEADY'
+                        ? 'Hold steady for the next view.'
+                        : panoramaGuidance === 'CAPTURING'
+                          ? 'Capturing a sharp view…'
+                          : `Move slowly ${panoramaDirection === -1 ? 'left' : panoramaDirection === 1 ? 'right' : 'in either direction'}.`
+                    : 'Start at one side, tap once, then sweep across the classroom.'
                   : 'Position the camera so that as many students as possible are visible.'}
               </Text>
               <Text variant="labelMd" color={palette.onPrimaryContainer}>
                 {captureMode === 'PANORAMA'
                   ? recordingPanorama
-                    ? 'Keep the phone level and turn from one spot. The camera records the panorama automatically.'
-                    : `Hold the phone sideways and make one smooth ${PANORAMA_SWEEP_DEGREES}° sweep.`
+                    ? `${panoramaFrameCount} of ${PANORAMA_FRAME_COUNT} views captured · ${panoramaHorizonError <= PANORAMA_HORIZON_WARNING_DEGREES ? 'Phone level' : `${panoramaHorizonError}° tilt`}`
+                    : `Keep the phone upright and make one guided ${PANORAMA_SWEEP_DEGREES}° sweep.`
                   : 'Hold steady, keep the whole room in frame, and avoid steep angles.'}
               </Text>
             </View>
           </View>
         )}
+
+        <View style={styles.cameraTools}>
+          <View style={styles.zoomSelector} accessibilityRole="radiogroup">
+            {ZOOM_PRESETS.map((preset) => {
+              const selected = zoom === preset.value;
+              return (
+                <Pressable
+                  key={preset.label}
+                  onPress={() => setZoom(preset.value)}
+                  disabled={recordingPanorama || submittingPanorama}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: recordingPanorama || submittingPanorama }}
+                  accessibilityLabel={`${preset.label} camera zoom`}
+                  style={[styles.toolOption, selected && styles.toolOptionSelected]}
+                >
+                  <Text
+                    variant="labelMd"
+                    color={selected ? palette.onPrimary : palette.surfaceContainerLowest}
+                  >
+                    {preset.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable
+            onPress={() => {
+              if (captureMode === 'PANORAMA') setTorchEnabled((enabled) => !enabled);
+              else
+                setFlashMode((current) =>
+                  current === 'off' ? 'auto' : current === 'auto' ? 'on' : 'off',
+                );
+            }}
+            disabled={recordingPanorama || submittingPanorama}
+            accessibilityRole="button"
+            accessibilityLabel={
+              captureMode === 'PANORAMA'
+                ? `Torch ${torchEnabled ? 'on' : 'off'}`
+                : `Flash ${flashMode}`
+            }
+            style={styles.lightingControl}
+          >
+            <Icon
+              name={
+                captureMode === 'PANORAMA'
+                  ? torchEnabled
+                    ? 'flash'
+                    : 'flashOff'
+                  : flashMode === 'off'
+                    ? 'flashOff'
+                    : 'flash'
+              }
+              size={17}
+              color={palette.surfaceContainerLowest}
+            />
+            <Text variant="labelMd" color={palette.surfaceContainerLowest}>
+              {captureMode === 'PANORAMA'
+                ? torchEnabled
+                  ? 'Torch on'
+                  : 'Torch off'
+                : `Flash ${flashMode}`}
+            </Text>
+          </Pressable>
+        </View>
 
         <View style={styles.shutterRow}>
           <AnimatedPressable
@@ -993,6 +1140,38 @@ const styles = StyleSheet.create({
   },
   modeOptionSelected: {
     backgroundColor: palette.primary,
+  },
+  cameraTools: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  zoomSelector: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(18, 18, 24, 0.78)',
+  },
+  toolOption: {
+    minHeight: 34,
+    minWidth: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+  },
+  toolOptionSelected: {
+    backgroundColor: palette.primary,
+  },
+  lightingControl: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(18, 18, 24, 0.78)',
   },
   hint: {
     flexDirection: 'row',

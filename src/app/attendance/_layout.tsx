@@ -31,7 +31,10 @@ export default function AttendanceLayout() {
         */}
         <Stack.Screen name="[classId]/select" />
         <Stack.Screen name="[classId]/upload" />
-        <Stack.Screen name="[classId]/camera" options={{ gestureEnabled: false }} />
+        <Stack.Screen
+          name="[classId]/camera"
+          options={{ gestureEnabled: false, orientation: 'portrait_up' }}
+        />
         <Stack.Screen name="[classId]/processing" options={{ gestureEnabled: false }} />
         <Stack.Screen name="[classId]/results" />
         <Stack.Screen name="[classId]/audit" />

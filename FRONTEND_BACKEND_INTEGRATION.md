@@ -158,7 +158,11 @@ sequenceDiagram
     A-->>F: Records, scores, evidence, and signed image URL
 ```
 
-The camera screen can collect up to eight views. The frontend uploads every collected image before starting processing. The worker searches only students enrolled in the selected classes and deduplicates a student recognized in several photographs.
+The standard camera screen can collect up to eight views. It exposes fixed, device-normalized zoom presets and cycles still-photo flash through off, auto, and on. The frontend uploads every collected image before starting processing.
+
+Panorama capture remains compatible with the same backend workflow. The client captures seven full-resolution source frames across an approximately 120-degree portrait sweep, waiting for the target angle, acceptable horizon, low rotation rate, and low acceleration before accepting each frame. It posts those files as the `frames` multipart field to `POST /api/v1/attendance/panorama/frames`, receives a panorama draft, creates a `PANORAMA` attendance session, and attaches the draft. Panorama zoom and torch are fixed once recording starts to prevent inconsistent frames. No backend request or response field changed for this camera upgrade.
+
+The worker searches only students enrolled in the selected classes and deduplicates a student recognized in several standard photographs.
 
 Attendance interpretation in the current beta is:
 
