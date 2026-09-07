@@ -6,11 +6,9 @@ layout and fails closed if a supplied model has an unsupported signature.
 """
 from dataclasses import dataclass
 from functools import lru_cache
-import io
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageOps
 
 try:
     from pillow_heif import register_heif_opener
@@ -20,6 +18,7 @@ except ImportError:
     pass
 
 from .config import get_settings
+from .storage import decode_image_pixels
 
 
 class ModelUnavailable(RuntimeError):
@@ -27,16 +26,8 @@ class ModelUnavailable(RuntimeError):
 
 
 def decode_image(content: bytes, cv2):
-    """Decode JPEG/PNG through OpenCV and fall back to Pillow for HEIC phone uploads."""
-    image = cv2.imdecode(np.frombuffer(content, np.uint8), cv2.IMREAD_COLOR)
-    if image is not None:
-        return image
-    try:
-        with Image.open(io.BytesIO(content)) as source:
-            rgb = np.asarray(ImageOps.exif_transpose(source).convert("RGB"))
-    except Exception as exc:
-        raise ValueError("Image decoding failed") from exc
-    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    """Decode a phone upload in the same orientation used by storage metadata and previews."""
+    return decode_image_pixels(content, cv2)
 
 
 @lru_cache(maxsize=1)

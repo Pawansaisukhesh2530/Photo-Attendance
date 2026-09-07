@@ -25,7 +25,7 @@ from .schemas import (AmendmentRequest, AttendanceRecordOut, FinalizeRequest, Pa
                       PanoramaAttach, SessionCreate, SessionOut)
 from .security import (create_face_image_token, create_image_token, create_panorama_token, current_user, optional_current_user, require_roles,
                        verify_face_image_token, verify_image_token, verify_panorama_token)
-from .storage import ObjectStorage, validate_image
+from .storage import ObjectStorage, decode_image_pixels, validate_image
 from .worker import process_attendance, process_face_enrolment
 
 router = APIRouter(tags=["Attendance"])
@@ -237,8 +237,9 @@ async def prepare_panorama_frames(frames: list[UploadFile] = File(...), db: Sess
     validated = [validate_image(await frame.read()) for frame in frames]
     decoded = []
     for image in validated:
-        frame = cv2.imdecode(np.frombuffer(image.content, dtype=np.uint8), cv2.IMREAD_COLOR)
-        if frame is None:
+        try:
+            frame = decode_image_pixels(image.content, cv2)
+        except ValueError:
             raise Problem(422, "Invalid panorama frame", "One of the captured views could not be decoded.")
         height, width = frame.shape[:2]
         longest = max(width, height)
@@ -361,8 +362,10 @@ def session_image_content(session_id:str,image_id:str,token:str=Query(...),db:Se
 def annotated_session_image(session_id:str,image_id:str,token:str=Query(...),db:Session=Depends(get_db)):
     verify_image_token(token,session_id,image_id);row=db.get(AttendanceSessionImage,image_id)
     if not row or row.session_id!=session_id:raise Problem(404,"Session image not found","The image does not exist.")
-    from PIL import Image,ImageDraw,ImageFont
-    image=Image.open(io.BytesIO(ObjectStorage().get(row.object_key))).convert("RGB");draw=ImageDraw.Draw(image)
+    from PIL import Image,ImageDraw,ImageFont,ImageOps
+    with Image.open(io.BytesIO(ObjectStorage().get(row.object_key))) as source:
+        image=ImageOps.exif_transpose(source).convert("RGB")
+    draw=ImageDraw.Draw(image)
     detections=db.scalars(select(FaceDetection).where(FaceDetection.image_id==image_id)).all()
     detection_ids=[d.id for d in detections]
     candidate_rows=db.execute(

@@ -47,6 +47,23 @@ def validate_image(content: bytes) -> ValidatedImage:
     return ValidatedImage(content, hashlib.sha256(content).hexdigest(), ALLOWED_FORMATS[fmt], width, height)
 
 
+def decode_image_pixels(content: bytes, cv2):
+    """Decode an upload into orientation-normalized BGR pixels.
+
+    Phone JPEGs commonly store the physical camera orientation in EXIF instead of rotating the
+    pixel array. Every detector, stitcher and annotation path must use the same normalized pixels
+    or face coordinates will be drawn in a different orientation from the displayed photograph.
+    """
+    try:
+        import numpy as np
+
+        with Image.open(io.BytesIO(content)) as source:
+            rgb = np.asarray(ImageOps.exif_transpose(source).convert("RGB"))
+    except Exception as exc:
+        raise ValueError("Image decoding failed") from exc
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+
 class ObjectStorage:
     def __init__(self):
         s = get_settings()

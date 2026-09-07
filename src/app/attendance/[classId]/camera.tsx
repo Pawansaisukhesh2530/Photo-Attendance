@@ -234,7 +234,9 @@ export default function CameraScreen() {
         // base64 would hold a multi-megabyte string in JS memory alongside the file; the
         // compression step reads from the URI instead.
         base64: false,
-        skipProcessing: Platform.OS === 'android',
+        // Let Expo rotate Android sensor pixels into the orientation shown in the viewfinder.
+        // Skipping this step produces sideways classroom files on several camera vendors.
+        skipProcessing: false,
       });
 
       if (!result?.uri) {
@@ -349,7 +351,7 @@ export default function CameraScreen() {
           const frame = await cameraRef.current.takePictureAsync({
             quality: 0.94,
             base64: false,
-            skipProcessing: Platform.OS === 'android',
+            skipProcessing: false,
           });
           if (!frame?.uri) throw new Error('A panorama view could not be saved.');
           panoramaFrameUrisRef.current.push(frame.uri);

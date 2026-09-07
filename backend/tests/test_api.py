@@ -15,7 +15,7 @@ from PIL import Image
 import io
 import os
 import tempfile
-from app.storage import ObjectStorage, validate_image
+from app.storage import ObjectStorage, decode_image_pixels, validate_image
 
 
 def test_successful_no_match_is_absent_but_missing_inputs_stay_unknown():
@@ -140,6 +140,37 @@ def test_faculty_student_directory_is_assignment_scoped(client, identities):
 
 def _png(color=(30,120,90)):
     image=Image.new("RGB",(160,160),color);target=io.BytesIO();image.save(target,"PNG");return target.getvalue()
+
+
+def _rotated_phone_jpeg():
+    image=Image.new("RGB",(120,60),(30,120,90))
+    exif=Image.Exif();exif[274]=6
+    target=io.BytesIO();image.save(target,"JPEG",exif=exif);return target.getvalue()
+
+
+def test_phone_orientation_is_consistent_for_detection_and_preview(client, identities):
+    import cv2
+
+    content=_rotated_phone_jpeg()
+    validated=validate_image(content)
+    decoded=decode_image_pixels(content,cv2)
+    assert (validated.width,validated.height)==(60,120)
+    assert decoded.shape[:2]==(120,60)
+
+    assigned,_,_,_=setup_class_scope(identities);headers=auth(identities["faculty_token"])
+    session=client.post("/api/v1/attendance/sessions",json={"class_ids":[assigned]},headers=headers).json()
+    uploaded=client.post(
+        f"/api/v1/attendance/sessions/{session['id']}/images",
+        headers=headers,
+        files=[("files",("phone.jpg",content,"image/jpeg"))],
+    )
+    assert uploaded.status_code==201
+    assert (uploaded.json()["items"][0]["width"],uploaded.json()["items"][0]["height"])==(60,120)
+    listed=client.get(f"/api/v1/attendance/sessions/{session['id']}/images",headers=headers).json()["items"]
+    annotated=client.get(listed[0]["annotated_url"],headers=headers)
+    assert annotated.status_code==200
+    with Image.open(io.BytesIO(annotated.content)) as preview:
+        assert preview.size==(60,120)
 
 
 def test_local_multi_image_workflow_and_all_exports(client, identities):
