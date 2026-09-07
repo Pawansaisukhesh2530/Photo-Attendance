@@ -44,7 +44,7 @@ const PREVIEW_CONTROL_BAND = 220;
 const PANORAMA_FRAME_COUNT = 7;
 const PANORAMA_STEP_DEGREES = 20;
 const PANORAMA_SWEEP_DEGREES = (PANORAMA_FRAME_COUNT - 1) * PANORAMA_STEP_DEGREES;
-const PANORAMA_TIMEOUT_MS = 45_000;
+const PANORAMA_TIMEOUT_MS = 90_000;
 const PANORAMA_STABLE_MS = 300;
 const PANORAMA_MAX_ROTATION_RATE = 8;
 const PANORAMA_MAX_ACCELERATION = 0.45;
@@ -164,12 +164,14 @@ export default function CameraScreen() {
   const panoramaDirectionRef = useRef<-1 | 1 | null>(null);
   const panoramaCaptureLockRef = useRef(false);
   const panoramaStableSinceRef = useRef<number | null>(null);
+  const panoramaCaptureFrameRef = useRef<(() => Promise<void>) | null>(null);
 
   const stopPanoramaSensors = useCallback((): void => {
     panoramaSubscriptionRef.current?.remove();
     panoramaSubscriptionRef.current = null;
     if (panoramaTimeoutRef.current) clearTimeout(panoramaTimeoutRef.current);
     panoramaTimeoutRef.current = null;
+    panoramaCaptureFrameRef.current = null;
   }, []);
 
   useEffect(() => stopPanoramaSensors, [stopPanoramaSensors]);
@@ -373,6 +375,7 @@ export default function CameraScreen() {
           panoramaCaptureLockRef.current = false;
         }
       };
+      panoramaCaptureFrameRef.current = captureFrame;
 
       // Capture the starting view directly from the user's tap. Requiring a sensor-derived
       // stability window before frame one made some Android devices appear unresponsive when
@@ -390,9 +393,22 @@ export default function CameraScreen() {
         setPanoramaHorizonError(Math.round(normalizedRoll));
         const previous = panoramaLastYawRef.current;
         panoramaLastYawRef.current = yaw;
+        const rotationRate = measurement.rotationRate;
 
         if (previous !== null) {
-          panoramaTravelRef.current += shortestAngleDelta(yaw, previous);
+          const absoluteYawDelta = shortestAngleDelta(yaw, previous);
+          // On some Android phones the absolute azimuth barely changes while the device is held
+          // upright. The gyroscope's Y axis still reports the physical left/right turn, so use
+          // whichever signal shows the stronger movement for this sample.
+          const gyroYawDelta = rotationRate
+            ? rotationRate.beta * (measurement.interval / 1000)
+            : 0;
+          const detectedDelta =
+            Math.abs(gyroYawDelta) > Math.abs(absoluteYawDelta)
+              ? gyroYawDelta
+              : absoluteYawDelta;
+          const boundedDelta = Math.max(-8, Math.min(8, detectedDelta));
+          panoramaTravelRef.current += boundedDelta;
           if (!panoramaDirectionRef.current && Math.abs(panoramaTravelRef.current) >= 4) {
             panoramaDirectionRef.current = panoramaTravelRef.current < 0 ? -1 : 1;
             setPanoramaDirection(panoramaDirectionRef.current);
@@ -416,7 +432,6 @@ export default function CameraScreen() {
           return;
         }
 
-        const rotationRate = measurement.rotationRate;
         const angularVelocity = rotationRate
           ? Math.sqrt(
               rotationRate.alpha ** 2 + rotationRate.beta ** 2 + rotationRate.gamma ** 2,
@@ -455,7 +470,7 @@ export default function CameraScreen() {
       panoramaTimeoutRef.current = setTimeout(() => {
         stopPanoramaSensors();
         setRecordingPanorama(false);
-        setError('The panorama sweep timed out. Retake it and rotate steadily in one direction.');
+        setError('The panorama sweep timed out. Retake it, or tap the shutter after each overlapping view.');
       }, PANORAMA_TIMEOUT_MS);
     } catch (caught) {
       stopPanoramaSensors();
@@ -809,7 +824,7 @@ export default function CameraScreen() {
             <View style={[styles.liveDot, recordingPanorama && styles.recordingDot]} />
             <Text variant="labelMd" color={palette.onSurface}>
               {recordingPanorama
-                ? `${panoramaSweepDegrees}° / ${PANORAMA_SWEEP_DEGREES}°`
+                ? `${panoramaFrameCount} / ${PANORAMA_FRAME_COUNT} views`
                 : 'Live'}
             </Text>
           </View>
@@ -870,14 +885,14 @@ export default function CameraScreen() {
                         ? 'Hold steady for the next view.'
                         : panoramaGuidance === 'CAPTURING'
                           ? 'Capturing a sharp view…'
-                          : `Move slowly ${panoramaDirection === -1 ? 'left' : panoramaDirection === 1 ? 'right' : 'in either direction'}.`
+                          : `Move slowly ${panoramaDirection === -1 ? 'left' : 'right'}, then hold steady.`
                     : 'Start at one side, tap once, then sweep across the classroom.'
                   : 'Position the camera so that as many students as possible are visible.'}
               </Text>
               <Text variant="labelMd" color={palette.onPrimaryContainer}>
                 {captureMode === 'PANORAMA'
                   ? recordingPanorama
-                    ? `${panoramaFrameCount} of ${PANORAMA_FRAME_COUNT} views captured · ${panoramaHorizonError <= PANORAMA_HORIZON_WARNING_DEGREES ? 'Phone level' : `${panoramaHorizonError}° tilt`}`
+                    ? `${panoramaFrameCount} of ${PANORAMA_FRAME_COUNT} views · ${panoramaHorizonError <= PANORAMA_HORIZON_WARNING_DEGREES ? 'Phone level' : `${panoramaHorizonError}° tilt`} · Tap the shutter if auto capture waits.`
                     : `Keep the phone upright and make one guided ${PANORAMA_SWEEP_DEGREES}° sweep.`
                   : 'Hold steady, keep the whole room in frame, and avoid steep angles.'}
               </Text>
@@ -952,15 +967,22 @@ export default function CameraScreen() {
 
         <View style={styles.shutterRow}>
           <AnimatedPressable
-            onPress={() =>
-              void (captureMode === 'PANORAMA' ? handlePanoramaCapture() : handleCapture())
-            }
-            disabled={!cameraReady || capturing || recordingPanorama || submittingPanorama}
+            onPress={() => {
+              if (captureMode !== 'PANORAMA') {
+                void handleCapture();
+                return;
+              }
+              if (recordingPanorama) void panoramaCaptureFrameRef.current?.();
+              else void handlePanoramaCapture();
+            }}
+            disabled={!cameraReady || capturing || submittingPanorama}
             feedback="scale"
             accessibilityRole="button"
             accessibilityLabel={
               captureMode === 'PANORAMA'
-                ? 'Start guided panorama sweep'
+                ? recordingPanorama
+                  ? 'Capture the next panorama view'
+                  : 'Start guided panorama sweep'
                 : 'Capture classroom photo'
             }
             accessibilityHint={
@@ -969,18 +991,18 @@ export default function CameraScreen() {
                 : 'Takes one photograph of the classroom'
             }
             accessibilityState={{
-              disabled: !cameraReady || capturing || recordingPanorama || submittingPanorama,
+              disabled: !cameraReady || capturing || submittingPanorama,
             }}
             style={[
               styles.shutterRing,
-              (!cameraReady || capturing || recordingPanorama || submittingPanorama) &&
+              (!cameraReady || capturing || submittingPanorama) &&
                 styles.shutterDisabled,
             ]}
           >
             <View
               style={[styles.shutterCore, recordingPanorama && styles.shutterCoreRecording]}
             >
-              {capturing || recordingPanorama || submittingPanorama ? (
+              {capturing || submittingPanorama ? (
                 <ActivityIndicator color={palette.onPrimary} />
               ) : (
                 <Icon
@@ -1000,7 +1022,7 @@ export default function CameraScreen() {
             ? 'Uploading panorama sweep…'
             : captureMode === 'PANORAMA'
               ? recordingPanorama
-                ? `Pan slowly · ${Math.round((panoramaSweepDegrees / PANORAMA_SWEEP_DEGREES) * 100)}% complete`
+                ? `${panoramaFrameCount} of ${PANORAMA_FRAME_COUNT} views captured · ${Math.round((panoramaSweepDegrees / PANORAMA_SWEEP_DEGREES) * 100)}% sweep`
                 : 'Tap the purple shutter to start the guided sweep'
               : photos.length === 0
                 ? 'Take 3–4 overlapping angles for a large classroom'
