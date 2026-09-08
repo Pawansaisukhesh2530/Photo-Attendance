@@ -22,6 +22,49 @@ celery_app = Celery("edutrace", broker=settings.redis_url, backend=settings.redi
 celery_app.conf.update(task_acks_late=True, worker_prefetch_multiplier=1, task_track_started=True)
 
 
+def _face_area(face) -> float:
+    x1, y1, x2, y2 = face.box
+    return max(0.0, x2 - x1) * max(0.0, y2 - y1)
+
+
+def _smaller_face_overlap(first, second) -> float:
+    ax1, ay1, ax2, ay2 = first.box
+    bx1, by1, bx2, by2 = second.box
+    overlap_width = max(0.0, min(ax2, bx2) - max(ax1, bx1))
+    overlap_height = max(0.0, min(ay2, by2) - max(ay1, by1))
+    smaller_area = min(_face_area(first), _face_area(second))
+    return (overlap_width * overlap_height / smaller_area) if smaller_area else 0.0
+
+
+def select_enrolment_face(faces):
+    """Choose one real subject while rejecting photos with multiple people.
+
+    Some phone portraits produce two overlapping detections for one profile face,
+    and an ID-card portrait may be detected near the bottom of the image. Merge
+    overlapping detections and ignore only a secondary face that is tiny compared
+    with the main subject. Similar-sized, separate faces remain rejected.
+    """
+    ranked = sorted(faces, key=_face_area, reverse=True)
+    distinct = []
+    for face in ranked:
+        if any(
+            _smaller_face_overlap(face, kept)
+            >= settings.enrolment_duplicate_face_overlap_ratio
+            for kept in distinct
+        ):
+            continue
+        distinct.append(face)
+    if not distinct:
+        return None, 0, None
+    if len(distinct) == 1:
+        return distinct[0], 1, 0.0
+    primary_area = _face_area(distinct[0])
+    secondary_ratio = _face_area(distinct[1]) / primary_area if primary_area else 1.0
+    if secondary_ratio <= settings.max_enrolment_secondary_face_area_ratio:
+        return distinct[0], len(distinct), secondary_ratio
+    return None, len(distinct), secondary_ratio
+
+
 def resolve_student_status(student_id,has_gallery,best,ambiguous,conflicted,successful_images):
     if student_id in conflicted:return AttendanceStatus.REVIEW,best.get(student_id,(None,None))[0],"DUPLICATE_IDENTITY_CLAIM"
     if student_id in ambiguous:return AttendanceStatus.REVIEW,None,"AMBIGUOUS_CANDIDATES"
@@ -38,18 +81,25 @@ def process_face_enrolment(self, image_id: str) -> None:
         image=db.get(StudentFaceImage,image_id)
         if not image or image.revoked_at:return
         faces=engine.analyse(storage.get(image.object_key))
-        if len(faces)!=1:
-            image.quality={"status":"REJECTED","reason":"EXACTLY_ONE_FACE_REQUIRED","detected_faces":len(faces)}
+        face, distinct_face_count, secondary_face_area_ratio = select_enrolment_face(faces)
+        if face is None:
+            image.quality={"status":"REJECTED","reason":"EXACTLY_ONE_FACE_REQUIRED","detected_faces":distinct_face_count}
             return
-        face=faces[0];x1,y1,x2,y2=face.box
+        quality_context={
+            "detected_faces": distinct_face_count,
+            "raw_detected_faces": len(faces),
+            "ignored_secondary_faces": max(0, distinct_face_count - 1),
+            "secondary_face_area_ratio": secondary_face_area_ratio,
+        }
+        x1,y1,x2,y2=face.box
         if min(x2-x1,y2-y1)<80:
-            image.quality={**face.quality,"status":"REJECTED","reason":"FACE_TOO_SMALL","detected_faces":1};return
+            image.quality={**face.quality,**quality_context,"status":"REJECTED","reason":"FACE_TOO_SMALL"};return
         # Laplacian variance depends strongly on camera resolution and portrait
         # compression. The previous 35 cutoff rejected usable high-resolution
         # phone portraits (values around 18–34). Keep a lower safety floor while
         # retaining the one-face and brightness checks.
         if face.quality["blur_variance"]<settings.min_enrolment_blur_variance or not 35<=face.quality["mean_brightness"]<=220:
-            image.quality={**face.quality,"status":"REJECTED","reason":"IMAGE_QUALITY","detected_faces":1};return
+            image.quality={**face.quality,**quality_context,"status":"REJECTED","reason":"IMAGE_QUALITY"};return
         same_student=db.execute(select(StudentFaceEmbedding.embedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==image.student_id,StudentFaceImage.id!=image.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).scalars().all()
         if any(float(np.dot(face.embedding,np.asarray(value,dtype=np.float32)))>=settings.duplicate_template_threshold for value in same_student):
             image.quality={**face.quality,"status":"REJECTED","reason":"DUPLICATE_TEMPLATE"};return
@@ -59,7 +109,7 @@ def process_face_enrolment(self, image_id: str) -> None:
         values=face.embedding.astype(float).tolist()
         if existing:existing.embedding=values;existing.model_version=settings.model_version;existing.revoked_at=None
         else:db.add(StudentFaceEmbedding(image_id=image.id,embedding=values,model_version=settings.model_version))
-        image.quality={**face.quality,"status":"CROSS_IDENTITY_REVIEW" if suspicious>=settings.cross_identity_review_threshold else "ACCEPTED","cross_identity_score":suspicious,"detected_faces":1}
+        image.quality={**face.quality,**quality_context,"status":"CROSS_IDENTITY_REVIEW" if suspicious>=settings.cross_identity_review_threshold else "ACCEPTED","cross_identity_score":suspicious}
 
 
 def _process_attendance(job_id: str) -> None:

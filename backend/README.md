@@ -32,6 +32,7 @@ The worker safely returns `UNKNOWN` records when model files are not configured.
 - Set `EDUTRACE_MODEL_VERSION` to an immutable model/build identifier.
 - Confirm the model-weight license before use. The repository intentionally contains no weights.
 - Tune `EDUTRACE_MATCH_THRESHOLD` and `EDUTRACE_AMBIGUITY_MARGIN` only from a separate, consented validation set.
+- Enrolment merges strongly overlapping detections of the same face and can ignore a tiny secondary portrait, such as a face printed on an ID card. Tune `EDUTRACE_ENROLMENT_DUPLICATE_FACE_OVERLAP_RATIO` and `EDUTRACE_MAX_ENROLMENT_SECONDARY_FACE_AREA_RATIO` conservatively; separate, similarly sized faces are always rejected.
 
 For classes near 100 students, capture 3–4 overlapping high-resolution views. The worker combines full-frame and overlapping tiled detections, preserves candidate evidence, and merges observations into one record per enrolled student.
 

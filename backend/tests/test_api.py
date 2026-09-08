@@ -10,7 +10,8 @@ from app.models import (AttendanceRecord, AttendanceSession, AttendanceSessionCl
 from tests.conftest import auth
 import numpy as np
 from app.recognition import decide_match
-from app.worker import resolve_student_status
+from app.worker import resolve_student_status, select_enrolment_face
+from types import SimpleNamespace
 from PIL import Image
 import io
 import os
@@ -25,6 +26,37 @@ def test_successful_no_match_is_absent_but_missing_inputs_stay_unknown():
     assert no_gallery==(AttendanceStatus.UNKNOWN,None,"NO_ACTIVE_FACE_ENROLMENT")
     no_image=resolve_student_status("S001",True,{},set(),set(),0)
     assert no_image==(AttendanceStatus.UNKNOWN,None,"NO_USABLE_SESSION_IMAGE")
+
+
+def _face(box):
+    return SimpleNamespace(box=box)
+
+
+def test_enrolment_face_selection_merges_overlapping_detector_boxes():
+    primary = _face((100, 100, 740, 1046))
+    overlapping = _face((485, 353, 958, 904))
+    selected, count, ratio = select_enrolment_face([primary, overlapping])
+    assert selected is primary
+    assert count == 1
+    assert ratio == 0.0
+
+
+def test_enrolment_face_selection_ignores_tiny_secondary_portrait():
+    primary = _face((100, 100, 900, 1000))
+    id_card_portrait = _face((1000, 1500, 1100, 1620))
+    selected, count, ratio = select_enrolment_face([primary, id_card_portrait])
+    assert selected is primary
+    assert count == 2
+    assert ratio < 0.10
+
+
+def test_enrolment_face_selection_rejects_two_people():
+    first = _face((100, 100, 700, 900))
+    second = _face((800, 100, 1350, 850))
+    selected, count, ratio = select_enrolment_face([first, second])
+    assert selected is None
+    assert count == 2
+    assert ratio > 0.10
 
 
 def setup_class_scope(identities):
