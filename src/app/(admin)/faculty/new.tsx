@@ -24,9 +24,6 @@ import { useInstitutionSettings } from '@/hooks/useSettings';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { FacultyStatus } from '@/types';
 
-const DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'ME', 'CE', 'IT', 'AI & DS', 'AIML', 'MBA'];
-const DESIGNATIONS = ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer', 'Teaching Assistant'];
-
 /**
  * Create or edit a faculty member.
  *
@@ -77,8 +74,8 @@ export default function AdminFacultyFormScreen() {
     setSeeded(true);
   }
 
-  const departmentOptions = useMemo(() => (settings?.departments?.length ? settings.departments : DEPARTMENTS).map((d) => ({ id: d, label: d, selected: d === department })), [department, settings]);
-  const designationOptions = useMemo(() => (settings?.facultyRoles?.length ? settings.facultyRoles : DESIGNATIONS).map((d) => ({ id: d, label: d, selected: d === designation })), [designation, settings]);
+  const departmentOptions = useMemo(() => (settings?.departments ?? []).map((d) => ({ id: d, label: d, selected: d === department })), [department, settings]);
+  const designationOptions = useMemo(() => (settings?.facultyRoles ?? []).map((d) => ({ id: d, label: d, selected: d === designation })), [designation, settings]);
 
   const submit = useCallback(async () => {
     setFieldErrors({});

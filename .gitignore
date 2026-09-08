@@ -45,3 +45,6 @@ yarn-error.*
 # Local environment
 .env
 .env.local
+
+# Local agent continuation state
+.omo/

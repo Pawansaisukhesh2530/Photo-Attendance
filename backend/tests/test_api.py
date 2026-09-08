@@ -104,6 +104,17 @@ def test_optimistic_concurrency(client, identities):
     assert stale.status_code==409
 
 
+def test_student_and_class_departments_must_come_from_settings(client, identities):
+    headers=auth(identities["admin_token"])
+    student=client.post("/api/v1/students",json={"student_id":"BAD-DEPT","roll_number":"BAD-DEPT","name":"Invalid Department","department":"Computer Scince","semester":1,"section":"A"},headers=headers)
+    assert student.status_code==422
+    assert student.json()["title"]=="Invalid department"
+
+    course=client.post("/api/v1/classes",json={"code":"BAD","subject":"Invalid Department","department":"Computer Scince","semester":1,"section":"A","academic_session":"2026-27"},headers=headers)
+    assert course.status_code==422
+    assert course.json()["title"]=="Invalid department"
+
+
 def test_matching_uses_multiple_templates_and_ambiguity(monkeypatch):
     from app.config import get_settings
     settings=get_settings();monkeypatch.setattr(settings,"match_threshold",0.45);monkeypatch.setattr(settings,"ambiguity_margin",0.05)
@@ -321,7 +332,7 @@ def test_admin_catalogue_and_audit_filters_are_applied(client, identities):
     assert faculty["total"]==1 and faculty["items"][0]["id"]==identities["faculty_id"]
     classes=client.get(f"/api/v1/classes?facultyId={identities['other_id']}&semester=3&department=CSE&status=ACTIVE",headers=headers).json()
     assert classes["total"]==1 and classes["items"][0]["id"]==unrelated
-    created=client.post("/api/v1/classes",headers=headers,json={"code":"AUD-1","subject":"Audit Test","department":"ECE","semester":1,"section":"A","academic_session":"2026-27"})
+    created=client.post("/api/v1/classes",headers=headers,json={"code":"AUD-1","subject":"Audit Test","department":"CSE","semester":1,"section":"A","academic_session":"2026-27"})
     assert created.status_code==201
     audit_rows=client.get(f"/api/v1/audit?actorId={identities['admin_id']}&action=CLASS_CREATED&search=CLASS",headers=headers).json()
     assert audit_rows["total"]==1 and audit_rows["items"][0]["actor_role"]=="ADMIN"

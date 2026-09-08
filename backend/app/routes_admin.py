@@ -117,6 +117,8 @@ def faculty_status(faculty_id:str,payload:dict,db:Session=Depends(get_db),actor:
 
 @router.post("/students",status_code=201)
 def create_student(payload:StudentIn,db:Session=Depends(get_db),actor:User=Depends(admin)):
+    if payload.department not in allowed_departments(db):
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     item=Student(**payload.model_dump()); db.add(item); db.flush(); audit(db,actor,"STUDENT_CREATED",item,after={"student_id":item.student_id}); _commit(db); return student_json(db,item)
 
 
@@ -155,12 +157,16 @@ def patch_student(student_id:str,payload:StudentPatch,db:Session=Depends(get_db)
     item=db.get(Student,student_id)
     if not item:raise Problem(404,"Student not found","The student does not exist.")
     ensure_version(item,payload.version);before={"name":item.name,"active":item.active}
+    if payload.department is not None and payload.department not in allowed_departments(db):
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     for k,v in payload.model_dump(exclude={"version"},exclude_none=True).items():setattr(item,k,v)
     item.version+=1;audit(db,actor,"STUDENT_UPDATED",item,before=before,after={"name":item.name,"active":item.active});db.commit();return item
 
 
 @router.post("/classes",status_code=201)
 def create_class(payload:ClassIn,db:Session=Depends(get_db),actor:User=Depends(admin)):
+    if payload.department not in allowed_departments(db):
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     item=CourseClass(**payload.model_dump());db.add(item);db.flush();audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
 
 
@@ -192,6 +198,8 @@ def patch_class(class_id:str,payload:ClassPatch,db:Session=Depends(get_db),actor
     item=db.get(CourseClass,class_id)
     if not item:raise Problem(404,"Class not found","The class does not exist.")
     ensure_version(item,payload.version);before={"subject":item.subject,"archived":item.archived}
+    if payload.department is not None and payload.department not in allowed_departments(db):
+        raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     for k,v in payload.model_dump(exclude={"version"},exclude_none=True).items():setattr(item,k,v)
     item.version+=1;audit(db,actor,"CLASS_UPDATED",item,before=before,after={"subject":item.subject,"archived":item.archived});db.commit();return class_json(db,item)
 

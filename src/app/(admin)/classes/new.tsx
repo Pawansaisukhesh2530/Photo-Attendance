@@ -12,6 +12,7 @@ import {
   Input,
   Screen,
   SectionHeader,
+  SelectionSheet,
   Text,
   useToast,
   type FilterChipOption,
@@ -54,6 +55,7 @@ export default function AdminClassFormScreen() {
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
+  const [departmentPickerOpen, setDepartmentPickerOpen] = useState(false);
 
   // Seeded once, so a background refetch cannot overwrite in-progress edits.
   if (isEdit && existing && !seeded) {
@@ -65,9 +67,14 @@ export default function AdminClassFormScreen() {
     setSeeded(true);
   }
 
-  const departmentOptions = useMemo<FilterChipOption<string>[]>(
-    () => (settings?.departments ?? []).map((d) => ({ value: d, label: d })),
-    [settings],
+  const departmentOptions = useMemo(
+    () =>
+      (settings?.departments ?? []).map((value) => ({
+        id: value,
+        label: value,
+        selected: value === department,
+      })),
+    [department, settings?.departments],
   );
 
   const semesterOptions = useMemo<FilterChipOption<string>[]>(() => {
@@ -208,27 +215,29 @@ export default function AdminClassFormScreen() {
         <View style={styles.block}>
           <SectionHeader title="Placement" divider />
           <Card>
-            <Input
-              label="Department"
-              value={department}
-              onChangeText={setDepartment}
-              placeholder="Computer Science"
-              autoCapitalize="words"
-              {...(fieldErrors.department ? { error: fieldErrors.department } : {})}
-            />
-            {departmentOptions.length > 0 ? (
-              <View style={styles.field}>
-                <Text variant="labelMd" color={palette.onSurfaceVariant}>
-                  SAVED DEPARTMENTS
+            <View style={styles.field}>
+              <Text variant="labelMd" color={palette.onSurface}>
+                Department
+              </Text>
+              <Button
+                label={department || 'Select department'}
+                icon="classes"
+                variant="secondary"
+                fullWidth
+                disabled={departmentOptions.length === 0}
+                onPress={() => setDepartmentPickerOpen(true)}
+              />
+              {fieldErrors.department ? (
+                <Text variant="labelMd" color={palette.error}>
+                  {fieldErrors.department}
                 </Text>
-                <FilterChips
-                  options={departmentOptions}
-                  selected={department}
-                  onSelect={setDepartment}
-                  contentInset={0}
-                />
-              </View>
-            ) : null}
+              ) : null}
+              {departmentOptions.length === 0 ? (
+                <Text variant="labelMd" color={palette.error}>
+                  Add a department in Settings before creating classes.
+                </Text>
+              ) : null}
+            </View>
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurfaceVariant}>
@@ -268,6 +277,19 @@ export default function AdminClassFormScreen() {
           />
         </View>
       </Screen>
+      <SelectionSheet
+        visible={departmentPickerOpen}
+        title="Choose department"
+        subtitle="Only departments saved by an administrator are available."
+        options={departmentOptions}
+        onSelect={(value) => {
+          setDepartment(value);
+          setDepartmentPickerOpen(false);
+        }}
+        onClose={() => setDepartmentPickerOpen(false)}
+        searchable
+        emptyMessage="Add a department in Settings first."
+      />
     </AdminScaffold>
   );
 }
