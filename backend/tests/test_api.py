@@ -97,6 +97,9 @@ def test_finalize_requires_acknowledgement_and_amendment_reason(client, identiti
 def test_optimistic_concurrency(client, identities):
     response=client.post("/api/v1/students",json={"student_id":"S1","roll_number":"R1","name":"A Student","department":"CSE","semester":1,"section":"A"},headers=auth(identities["admin_token"]))
     assert response.status_code==201
+    duplicate=client.post("/api/v1/students",json={"student_id":"S1","roll_number":"R1","name":"Duplicate Student","department":"CSE","semester":1,"section":"A"},headers=auth(identities["admin_token"]))
+    assert duplicate.status_code==409
+    assert duplicate.json()["detail"]=="That student ID or roll number already belongs to another student."
     sid=response.json()["id"]
     first=client.patch(f"/api/v1/students/{sid}",json={"name":"Updated","version":1},headers=auth(identities["admin_token"]))
     assert first.status_code==200

@@ -63,6 +63,15 @@ def _commit(db: Session, message="A record with that identifier already exists."
         raise Problem(409, "Duplicate record", message) from exc
 
 
+def _flush(db: Session, message="A record with that identifier already exists."):
+    """Flush generated identifiers while preserving the API's conflict response."""
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise Problem(409, "Duplicate record", message) from exc
+
+
 @router.post("/faculty", status_code=201)
 def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: User = Depends(admin)):
     if payload.department not in allowed_departments(db):
@@ -70,10 +79,10 @@ def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: Use
     if payload.designation not in allowed_designations(db):
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
     user = User(email=payload.email.lower(), password_hash=hash_password(payload.password), role=Role.FACULTY)
-    db.add(user); db.flush()
+    db.add(user); _flush(db, "That email address is already assigned to an account.")
     member = Faculty(user_id=user.id, employee_id=payload.employee_id, name=payload.name,
                      department=payload.department, designation=payload.designation)
-    db.add(member); db.flush(); audit(db, actor, "FACULTY_CREATED", member, after={"employee_id": member.employee_id})
+    db.add(member); _flush(db, "That employee ID is already assigned to a faculty member."); audit(db, actor, "FACULTY_CREATED", member, after={"employee_id": member.employee_id})
     _commit(db); return faculty_json(db,member)
 
 
@@ -119,7 +128,7 @@ def faculty_status(faculty_id:str,payload:dict,db:Session=Depends(get_db),actor:
 def create_student(payload:StudentIn,db:Session=Depends(get_db),actor:User=Depends(admin)):
     if payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
-    item=Student(**payload.model_dump()); db.add(item); db.flush(); audit(db,actor,"STUDENT_CREATED",item,after={"student_id":item.student_id}); _commit(db); return student_json(db,item)
+    item=Student(**payload.model_dump()); db.add(item); _flush(db, "That student ID or roll number already belongs to another student."); audit(db,actor,"STUDENT_CREATED",item,after={"student_id":item.student_id}); _commit(db); return student_json(db,item)
 
 
 @router.get("/students")
@@ -167,7 +176,7 @@ def patch_student(student_id:str,payload:StudentPatch,db:Session=Depends(get_db)
 def create_class(payload:ClassIn,db:Session=Depends(get_db),actor:User=Depends(admin)):
     if payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
-    item=CourseClass(**payload.model_dump());db.add(item);db.flush();audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
+    item=CourseClass(**payload.model_dump());db.add(item);_flush(db, "That class code is already in use.");audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
 
 
 @router.get("/classes")
