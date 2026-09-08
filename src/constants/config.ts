@@ -8,9 +8,20 @@
  * readable by anyone who downloads the app.
  */
 
-/** Base URL of the REST API. */
+import { Platform } from 'react-native';
+
+/**
+ * Base URL of the REST API.
+ *
+ * Web follows the hostname that served Expo, so opening the app through localhost or a new LAN IP
+ * does not leave requests pointing at an address from an earlier network. Native builds still use
+ * the explicit environment value because a phone cannot reach the computer through localhost.
+ */
+const webHostname = typeof window === 'undefined' ? null : window.location.hostname;
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8010/api/v1';
+  Platform.OS === 'web' && webHostname
+    ? `http://${webHostname}:8010/api/v1`
+    : (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8010/api/v1');
 
 /** Request timeout in ms. Generous, since classroom photo upload is on the same path. */
 export const API_TIMEOUT_MS = 30_000;
