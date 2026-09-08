@@ -61,7 +61,7 @@ Install the backend with the `vision` and `test` extras, place YuNet and SFace O
 
 From the repository root, set `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8010/api/v1` in `.env`, run `npm install`, and start the Expo frontend with `npm start -- --web --port 8081`. Sign in as the seeded administrator to create faculty, students, classes, assignments, enrolments, and face photos. Faculty accounts take attendance with 1–8 classroom images. Results include the annotated photograph, model scores, review decisions, and exports.
 
-The local threshold is `0.45`. Calibrate production thresholds on representative, consented classroom images before deployment. Local PostgreSQL may run with `EDUTRACE_PGVECTOR_ENABLED=false`; production should enable the pgvector extension.
+The local threshold is `0.42`. Calibrate production thresholds on representative, consented classroom images before deployment. Local PostgreSQL may run with `EDUTRACE_PGVECTOR_ENABLED=false`; production should enable the pgvector extension.
 ## Capacity benchmark
 
 Copy `benchmark-manifest.example.json`, point it at consented classroom images, set the expected visible-face counts, and run:

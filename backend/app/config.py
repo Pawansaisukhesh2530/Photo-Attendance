@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     recognition_backend: Literal["auto", "scrfd_arcface", "opencv"] = "auto"
     yunet_model_path: str = "models/face_detection_yunet.onnx"
     sface_model_path: str = "models/face_recognition_sface.onnx"
-    match_threshold: float = Field(default=0.45, ge=-1, le=1)
+    match_threshold: float = Field(default=0.42, ge=-1, le=1)
     ambiguity_margin: float = Field(default=0.05, ge=0, le=2)
     duplicate_template_threshold: float = Field(default=0.995, ge=-1, le=1)
     cross_identity_review_threshold: float = Field(default=0.75, ge=-1, le=1)
