@@ -35,7 +35,7 @@ def seed_demo(password:str="LocalTest123!")->None:
         if not user:
             user=db.scalar(select(User).where(User.email=="tester.faculty@example.edu"))
             if user:user.email=FACULTY_EMAIL
-        if not user:user=User(email="tester.faculty@example.edu",password_hash=hash_password(password),role=Role.FACULTY);db.add(user);db.flush()
+        if not user:user=User(email=FACULTY_EMAIL,password_hash=hash_password(password),role=Role.FACULTY);db.add(user);db.flush()
         faculty=db.scalar(select(Faculty).where(Faculty.user_id==user.id))
         if not faculty:faculty=Faculty(user_id=user.id,employee_id="TEST-F001",name="Test Faculty",department="CSE");db.add(faculty);db.flush()
         student=db.scalar(select(Student).where(Student.student_id=="TEST-S001"))

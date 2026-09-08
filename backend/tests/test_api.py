@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.domain import build_safe_unknown_records, candidate_student_ids
 from app.models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass,
-                        AttendanceStatus, CourseClass, Enrolment, FacultyClassAssignment,
+                        AttendanceStatus, CourseClass, Enrolment, Faculty, FacultyClassAssignment,
                         PanoramaDraft, SessionStatus, Student, TwinReview)
 from tests.conftest import auth
 import numpy as np
@@ -148,6 +148,21 @@ def test_student_and_class_departments_must_come_from_settings(client, identitie
     course=client.post("/api/v1/classes",json={"code":"BAD","subject":"Invalid Department","department":"Computer Scince","semester":1,"section":"A","academic_session":"2026-27"},headers=headers)
     assert course.status_code==422
     assert course.json()["title"]=="Invalid department"
+
+
+def test_faculty_email_requires_institution_domain_and_can_be_corrected(client, identities):
+    headers=auth(identities["admin_token"])
+    invalid=client.post("/api/v1/faculty",json={"email":"typo@christuniverisity.in","password":"StrongPass123!","employee_id":"FAC-TYPO","name":"Typo Faculty","department":"CSE","designation":"Faculty"},headers=headers)
+    assert invalid.status_code==422
+
+    with SessionLocal() as db:
+        faculty=db.get(Faculty,identities["faculty_id"])
+        version=faculty.version
+    updated=client.patch(f"/api/v1/faculty/{identities['faculty_id']}",json={"email":"faculty@christuniversity.in","version":version},headers=headers)
+    assert updated.status_code==200
+    assert updated.json()["email"]=="faculty@christuniversity.in"
+    login=client.post("/api/v1/auth/login",json={"identifier":"faculty@christuniversity.in","password":"StrongPass123!"})
+    assert login.status_code==200
 
 
 def test_matching_uses_multiple_templates_and_ambiguity(monkeypatch):

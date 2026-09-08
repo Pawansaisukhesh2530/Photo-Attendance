@@ -114,8 +114,13 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     if payload.designation is not None and payload.designation not in allowed_designations(db):
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
-    for key,value in payload.model_dump(exclude={"version"},exclude_none=True).items(): setattr(item,key,value)
-    item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); db.commit(); return faculty_json(db,item)
+    changes=payload.model_dump(exclude={"version"},exclude_none=True)
+    email=changes.pop("email",None)
+    if email is not None:
+        user=db.get(User,item.user_id)
+        user.email=str(email).lower()
+    for key,value in changes.items(): setattr(item,key,value)
+    item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); _commit(db,"That email address is already assigned to an account."); return faculty_json(db,item)
 
 @router.patch("/faculty/{faculty_id}/status")
 def faculty_status(faculty_id:str,payload:dict,db:Session=Depends(get_db),actor:User=Depends(admin)):

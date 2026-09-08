@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import AttendanceStatus, FacultyStatus, Role, SessionStatus
 
@@ -58,13 +58,28 @@ class FacultyIn(BaseModel):
     department: str = Field(min_length=1, max_length=120)
     designation: str = Field(default="Faculty", max_length=120)
 
+    @field_validator("email")
+    @classmethod
+    def require_institution_email(cls, value: EmailStr) -> EmailStr:
+        if not str(value).lower().endswith("@christuniversity.in"):
+            raise ValueError("Use a @christuniversity.in email address.")
+        return value
+
 
 class FacultyPatch(BaseModel):
+    email: EmailStr | None = None
     name: str | None = Field(default=None, min_length=1, max_length=200)
     department: str | None = Field(default=None, min_length=1, max_length=120)
     designation: str | None = Field(default=None, min_length=1, max_length=120)
     status: FacultyStatus | None = None
     version: int
+
+    @field_validator("email")
+    @classmethod
+    def require_institution_email(cls, value: EmailStr | None) -> EmailStr | None:
+        if value is not None and not str(value).lower().endswith("@christuniversity.in"):
+            raise ValueError("Use a @christuniversity.in email address.")
+        return value
 
 
 class FacultyOut(BaseModel):
@@ -206,5 +221,6 @@ class SettingsOut(BaseModel):
     attendance_threshold: int
     image_retention_days: int
     version: int
+
     departments: list[str] = ["CSE"]
     faculty_roles: list[str] = ["Assistant Professor"]

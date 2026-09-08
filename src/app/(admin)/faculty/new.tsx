@@ -173,7 +173,7 @@ export default function AdminFacultyFormScreen() {
               label="Email"
               value={email}
               onChangeText={setEmail}
-              placeholder="anita.rao@institution.edu"
+              placeholder="anita.rao@christuniversity.in"
               keyboardType="email-address"
               autoCapitalize="none"
               {...(fieldErrors.email ? { error: fieldErrors.email } : {})}

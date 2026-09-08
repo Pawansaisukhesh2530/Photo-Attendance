@@ -117,7 +117,7 @@ export default function ForgotPasswordScreen() {
                   icon="person"
                   value={identifier}
                   onChangeText={setIdentifier}
-                  placeholder="e.g. emp_12345 or email@institution.edu"
+                  placeholder="e.g. TEST-F001 or name@christuniversity.in"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
