@@ -177,13 +177,34 @@ class OpenCvFaceEngine:
         self.detector=cv2.FaceDetectorYN.create(str(detector),"",(320,320),0.65,0.3,5000)
         self.recognizer=cv2.FaceRecognizerSF.create(str(embedder),"")
 
+    def _feature_from_zoomed_face(self, image, face):
+        """Upscale a padded face crop before SFace alignment for distant phone faces."""
+        cv2=self.cv2; settings=get_settings()
+        x,y,bw,bh=[float(v) for v in face[:4]]
+        padding=0.25*max(bw,bh)
+        left=max(0,int(x-padding)); top=max(0,int(y-padding))
+        right=min(image.shape[1],int(x+bw+padding)); bottom=min(image.shape[0],int(y+bh+padding))
+        crop=image[top:bottom,left:right]
+        if crop.size == 0 or min(bw, bh) >= 80:
+            aligned=self.recognizer.alignCrop(image,face)
+        else:
+            scale=settings.opencv_face_crop_upscale
+            zoomed=cv2.resize(crop,(max(1,round(crop.shape[1]*scale)),max(1,round(crop.shape[0]*scale))),interpolation=cv2.INTER_CUBIC)
+            adjusted=face.copy()
+            adjusted[:4]=[(x-left)*scale,(y-top)*scale,bw*scale,bh*scale]
+            adjusted[4:14]=(adjusted[4:14].reshape(5,2)-[left,top]).reshape(-1)*scale
+            aligned=self.recognizer.alignCrop(zoomed,adjusted)
+        raw=self.recognizer.feature(aligned).reshape(-1)
+        vector=np.zeros(512,dtype=np.float32); vector[:min(512,len(raw))]=raw[:512]
+        return normalize(vector)
+
     def analyse(self,content:bytes):
-        cv2=self.cv2; image=decode_image(content,cv2)
+        cv2=self.cv2; settings=get_settings(); image=decode_image(content,cv2)
         h,w=image.shape[:2]
         # YuNet becomes unreliable and memory-heavy when a full-resolution phone photo is used as
         # its network input. Detect on a bounded copy, then scale boxes and landmarks back to the
-        # original image so SFace still receives the highest-quality crop.
-        scale=min(1.0,2048/max(h,w)); detection_image=image
+        # original image. SFace still receives the highest-quality crop from the original pixels.
+        scale=min(1.0,settings.opencv_detection_max_dimension/max(h,w)); detection_image=image
         if scale<1.0:detection_image=cv2.resize(image,(max(1,int(w*scale)),max(1,int(h*scale))))
         dh,dw=detection_image.shape[:2];self.detector.setInputSize((dw,dh));_,faces=self.detector.detect(detection_image)
         result=[]
@@ -191,9 +212,7 @@ class OpenCvFaceEngine:
             face=face.copy()
             if scale<1.0:face[:14]/=scale
             x,y,bw,bh=[float(v) for v in face[:4]]; landmarks=np.asarray(face[4:14],dtype=np.float32).reshape(5,2)
-            aligned=self.recognizer.alignCrop(image,face); raw=self.recognizer.feature(aligned).reshape(-1)
-            # SFace produces 128 values; zero-padding preserves cosine scores in the 512-vector schema.
-            vector=np.zeros(512,dtype=np.float32); vector[:min(512,len(raw))]=raw[:512]; embedding=normalize(vector)
+            embedding=self._feature_from_zoomed_face(image,face)
             crop=image[max(0,int(y)):max(0,int(y+bh)),max(0,int(x)):max(0,int(x+bw))]
             gray=cv2.cvtColor(crop,cv2.COLOR_BGR2GRAY) if crop.size else np.zeros((1,1),dtype=np.uint8)
             quality={"detection_confidence":float(face[14]),"blur_variance":float(cv2.Laplacian(gray,cv2.CV_64F).var()),"mean_brightness":float(gray.mean()),"face_width":int(bw),"face_height":int(bh)}

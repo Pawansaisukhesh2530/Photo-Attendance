@@ -22,7 +22,9 @@ $env:EDUTRACE_RECOGNITION_BACKEND="opencv"
 $env:EDUTRACE_YUNET_MODEL_PATH="models/face_detection_yunet.onnx"
 $env:EDUTRACE_SFACE_MODEL_PATH="models/face_recognition_sface.onnx"
 $env:EDUTRACE_MODEL_VERSION="opencv-yunet-sface-local-v3"
-$env:EDUTRACE_MATCH_THRESHOLD="0.42"
+$env:EDUTRACE_MATCH_THRESHOLD="0.60"
+$env:EDUTRACE_OPENCV_DETECTION_MAX_DIMENSION="2048"
+$env:EDUTRACE_OPENCV_FACE_CROP_UPSCALE="2.0"
 & $Python -m app.ensure_postgres --user $User --password $Password --database $Database
 & $Python -m alembic upgrade head
 & $Python -m app.seed --email admin@christuniversity.in --password LocalTest123!
