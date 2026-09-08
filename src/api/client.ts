@@ -164,15 +164,24 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.toString();
 }
 
-function appendFilePart(
+async function appendFilePart(
   form: FormData,
   fieldName: string,
   uri: string,
   name: string,
   type: string,
-): void {
+): Promise<void> {
   if (Platform.OS === 'web') {
-    form.append(fieldName, { uri, name, type } as unknown as Blob);
+    // Browser FormData accepts Blob/File objects. The React Native `{ uri, name, type }` shape is
+    // serialised as the string "[object Object]" on web, which FastAPI correctly rejects because it
+    // is not an UploadFile. Image Picker supplies a blob: URL in browsers, so resolve it back to its
+    // bytes before appending it and preserve the filename for multipart metadata.
+    const response = await fetch(uri);
+    if (!response.ok) {
+      throw makeError('UPLOAD_INTERRUPTED', 'The selected photo could not be read. Choose it again.');
+    }
+    const blob = await response.blob();
+    form.append(fieldName, blob.type ? blob : blob.slice(0, blob.size, type), name);
     return;
   }
 
@@ -278,7 +287,7 @@ export async function uploadAttendanceMedia<T>(
 
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
-  appendFilePart(form, media.fieldName, mediaUri, media.name, media.type);
+  await appendFilePart(form, media.fieldName, mediaUri, media.name, media.type);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('timeout'), UPLOAD_TIMEOUT_MS);
@@ -327,11 +336,11 @@ export async function uploadAttendanceMedia<T>(
 
 export async function uploadFiles<T>(path:string,fileUris:string[],fieldName='files'):Promise<T> {
   const form=new FormData();
-  fileUris.forEach((uri,index)=>{
+  for (const [index, uri] of fileUris.entries()) {
     const extension = (uri.split('?')[0] ?? uri).split('.').pop()?.toLowerCase() ?? '';
     const type = extension === 'png' ? 'image/png' : extension === 'heic' || extension === 'heif' ? 'image/heic' : 'image/jpeg';
-    appendFilePart(form,fieldName,uri,`image-${index+1}.${extension === 'png' ? 'png' : extension === 'heic' || extension === 'heif' ? 'heic' : 'jpg'}`,type);
-  });
+    await appendFilePart(form,fieldName,uri,`image-${index+1}.${extension === 'png' ? 'png' : extension === 'heic' || extension === 'heif' ? 'heic' : 'jpg'}`,type);
+  }
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('timeout'), UPLOAD_TIMEOUT_MS);
   try {
