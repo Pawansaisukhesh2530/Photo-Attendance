@@ -82,6 +82,74 @@ class RefreshToken(Versioned, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class School(Versioned, Base):
+    __tablename__ = "schools"
+    __table_args__ = (UniqueConstraint("code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class Department(Versioned, Base):
+    __tablename__ = "academic_departments"
+    __table_args__ = (UniqueConstraint("school_id", "code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id", ondelete="RESTRICT"), index=True)
+    code: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class AcademicProgram(Versioned, Base):
+    __tablename__ = "academic_programs"
+    __table_args__ = (UniqueConstraint("department_id", "code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    department_id: Mapped[str] = mapped_column(ForeignKey("academic_departments.id", ondelete="RESTRICT"), index=True)
+    code: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(180), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class AcademicBatch(Versioned, Base):
+    __tablename__ = "academic_batches"
+    __table_args__ = (UniqueConstraint("program_id", "code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    program_id: Mapped[str] = mapped_column(ForeignKey("academic_programs.id", ondelete="RESTRICT"), index=True)
+    code: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    start_year: Mapped[int] = mapped_column(Integer)
+    end_year: Mapped[int] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class AcademicSection(Versioned, Base):
+    __tablename__ = "academic_sections"
+    __table_args__ = (UniqueConstraint("batch_id", "code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    batch_id: Mapped[str] = mapped_column(ForeignKey("academic_batches.id", ondelete="RESTRICT"), index=True)
+    code: Mapped[str] = mapped_column(String(20), index=True)
+    name: Mapped[str] = mapped_column(String(80), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class Subject(Versioned, Base):
+    __tablename__ = "subjects"
+    __table_args__ = (UniqueConstraint("code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(180), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class ProgramSubject(Base):
+    __tablename__ = "program_subjects"
+    __table_args__ = (UniqueConstraint("program_id", "subject_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    program_id: Mapped[str] = mapped_column(ForeignKey("academic_programs.id", ondelete="CASCADE"), index=True)
+    subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id", ondelete="RESTRICT"), index=True)
+
+
 class Faculty(Versioned, Base):
     __tablename__ = "faculty"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)

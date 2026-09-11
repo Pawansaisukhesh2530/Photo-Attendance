@@ -83,6 +83,14 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     primary: false,
     description: 'Institution policy and configuration',
   },
+  {
+    segment: 'academic-structure',
+    href: '/(admin)/academic-structure',
+    label: 'Academic structure',
+    icon: 'classes',
+    primary: false,
+    description: 'Schools, departments, programmes, batches and subjects',
+  },
 ];
 
 /** The four that live behind "More" on a phone. */

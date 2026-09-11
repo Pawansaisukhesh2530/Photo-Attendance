@@ -1,11 +1,9 @@
 import argparse
-from datetime import time
-
 from sqlalchemy import select
 
 from .db import Base, SessionLocal, engine
-from .models import (CourseClass,Enrolment,Faculty,FacultyClassAssignment,
-                     InstitutionSettings,Role,SlotType,Student,TimetableSlot,User)
+from .models import (Faculty, InstitutionSettings, Role, Student, User,
+                     AcademicBatch, AcademicProgram, AcademicSection, Department, School, Subject, ProgramSubject)
 from .security import hash_password
 
 ADMIN_EMAIL = "admin@christuniversity.in"
@@ -78,7 +76,7 @@ DEMO_SLOTS = [
 
 
 def seed_demo(password:str="LocalTest123!")->None:
-    """Create a minimal, clearly labelled local test scope. Idempotent."""
+    """Create local test accounts and a canonical academic hierarchy. Idempotent."""
     Base.metadata.create_all(engine)
     with SessionLocal.begin() as db:
         user=db.scalar(select(User).where(User.email==FACULTY_EMAIL))
@@ -92,51 +90,26 @@ def seed_demo(password:str="LocalTest123!")->None:
         student=db.scalar(select(Student).where(Student.student_id=="TEST-S001"))
         if not student:student=Student(student_id="TEST-S001",roll_number="TEST-R001",name="Test Student",department="CSE",semester=5,section="A");db.add(student);db.flush()
 
-        class_map = {}
-        for cd in DEMO_CLASSES:
-            existing = db.scalar(select(CourseClass).where(
-                CourseClass.code == cd["code"], CourseClass.variant == cd["variant"]))
-            if not existing:
-                existing = CourseClass(
-                    code=cd["code"], variant=cd["variant"], subject=cd["subject"],
-                    department="CSE", semester=cd["semester"], section=cd["section"],
-                    academic_session="2026-27")
-                db.add(existing)
-                db.flush()
-            class_map[(cd["code"], cd["variant"])] = existing
-
-        for key, course in class_map.items():
-            if not db.scalar(select(FacultyClassAssignment).where(
-                FacultyClassAssignment.faculty_id == faculty.id,
-                FacultyClassAssignment.class_id == course.id)):
-                db.add(FacultyClassAssignment(faculty_id=faculty.id, class_id=course.id))
-
-        for sl in DEMO_SLOTS:
-            existing = db.scalar(select(TimetableSlot).where(
-                TimetableSlot.faculty_id == faculty.id,
-                TimetableSlot.day_of_week == sl["day"],
-                TimetableSlot.start_time == time(*sl["start"])))
-            if existing:
-                continue
-            if sl["code"] is not None:
-                course = class_map.get((sl["code"], sl["variant"]))
-                if not course:
-                    continue
-                slot = TimetableSlot(
-                    faculty_id=faculty.id, class_id=course.id,
-                    slot_type=SlotType.CLASS, day_of_week=sl["day"],
-                    start_time=time(*sl["start"]), end_time=time(*sl["end"]),
-                    room=sl["room"])
-            else:
-                slot = TimetableSlot(
-                    faculty_id=faculty.id, class_id=None,
-                    slot_type=SlotType.FREE, day_of_week=sl["day"],
-                    start_time=time(*sl["start"]), end_time=time(*sl["end"]),
-                    room=None, break_label=sl["break_label"])
-            db.add(slot)
-
-        if not db.scalar(select(Enrolment).where(Enrolment.student_id==student.id,Enrolment.class_id==class_map[("CS201","Lecture")].id)):
-            db.add(Enrolment(student_id=student.id,class_id=class_map[("CS201","Lecture")].id))
+        school = db.scalar(select(School).where(School.code == "CHRIST"))
+        if not school:
+            school = School(code="CHRIST", name="Christ University"); db.add(school); db.flush()
+        department = db.scalar(select(Department).where(Department.school_id == school.id, Department.code == "CSE"))
+        if not department:
+            department = Department(school_id=school.id, code="CSE", name="Computer Science and Engineering"); db.add(department); db.flush()
+        program = db.scalar(select(AcademicProgram).where(AcademicProgram.department_id == department.id, AcademicProgram.code == "BTECH-CSE"))
+        if not program:
+            program = AcademicProgram(department_id=department.id, code="BTECH-CSE", name="B.Tech Computer Science"); db.add(program); db.flush()
+        batch = db.scalar(select(AcademicBatch).where(AcademicBatch.program_id == program.id, AcademicBatch.code == "2024"))
+        if not batch:
+            batch = AcademicBatch(program_id=program.id, code="2024", name="2024–2028", start_year=2024, end_year=2028); db.add(batch); db.flush()
+        if not db.scalar(select(AcademicSection).where(AcademicSection.batch_id == batch.id, AcademicSection.code == "A")):
+            db.add(AcademicSection(batch_id=batch.id, code="A", name="Section A"))
+        for code, name in (("CS201", "Data Structures & Algorithms"), ("CS401", "Machine Learning"), ("CS301", "Computer Networks")):
+            subject = db.scalar(select(Subject).where(Subject.code == code))
+            if not subject:
+                subject = Subject(code=code, name=name); db.add(subject); db.flush()
+            if not db.scalar(select(ProgramSubject).where(ProgramSubject.program_id == program.id, ProgramSubject.subject_id == subject.id)):
+                db.add(ProgramSubject(program_id=program.id, subject_id=subject.id))
 
 
 if __name__ == "__main__":

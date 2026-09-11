@@ -91,6 +91,7 @@ export default function AdminLayout() {
         <Tabs.Screen name="audit" options={{ href: null }} />
         <Tabs.Screen name="settings" options={{ href: null }} />
         <Tabs.Screen name="timetable" options={{ href: null }} />
+        <Tabs.Screen name="academic-structure" options={{ href: null }} />
       </Tabs>
     </AuthGuard>
   );
