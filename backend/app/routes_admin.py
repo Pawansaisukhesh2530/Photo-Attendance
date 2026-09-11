@@ -9,7 +9,7 @@ from .db import get_db
 from .domain import audit, authorized_class_ids, ensure_version, page
 from .errors import Problem
 from .models import (AttendanceRecord,AttendanceSession,AttendanceSessionClass,AttendanceStatus,AuditEntry, CourseClass, Enrolment, Faculty, FacultyClassAssignment,
-                     FacultyStatus, InstitutionSettings, Role, SessionStatus, Student, StudentFaceEmbedding, StudentFaceImage, User)
+                     FacultyStatus, InstitutionSettings, Role, SessionStatus, Student, StudentFaceEmbedding, StudentFaceImage, TimetableSlot, User)
 from .config import get_settings
 from .schemas import (AssignmentRequest, ClassIn, ClassOut, ClassPatch, EnrolmentUpdate,
                       FacultyIn, FacultyOut, FacultyPatch, Page, SettingsOut, SettingsPatch,
@@ -38,7 +38,10 @@ def class_json(db:Session,item:CourseClass):
                           .where(AttendanceSessionClass.class_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED,
                                  AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT]))).scalars().all()
     attendance_percentage=round(100*sum(value==AttendanceStatus.PRESENT for value in attendance)/len(attendance),2) if attendance else 0
-    return {"id":item.id,"code":item.code,"subject":item.subject,"department":item.department,"semester":item.semester,"section":item.section,"academic_session":item.academic_session,"archived":item.archived,"version":item.version,"faculty_id":member.id if member else None,"faculty_name":member.name if member else None,"student_count":count,"attendance_percentage":attendance_percentage}
+    slots=list(db.scalars(select(TimetableSlot).where(TimetableSlot.class_id==item.id).order_by(TimetableSlot.day_of_week,TimetableSlot.start_time)))
+    from .routes_timetable import _format_time, DAY_NAMES
+    schedule=[{"day_of_week":s.day_of_week,"day_label":DAY_NAMES.get(s.day_of_week,""),"start_time":_format_time(s.start_time),"end_time":_format_time(s.end_time),"room":s.room or "N/A"} for s in slots]
+    return {"id":item.id,"code":item.code,"variant":item.variant,"subject":item.subject,"department":item.department,"semester":item.semester,"section":item.section,"academic_session":item.academic_session,"archived":item.archived,"version":item.version,"faculty_id":member.id if member else None,"faculty_name":member.name if member else None,"student_count":count,"attendance_percentage":attendance_percentage,"schedule":schedule}
 
 def student_json(db:Session,item:Student,profile=False):
     class_ids=list(db.scalars(select(Enrolment.class_id).where(Enrolment.student_id==item.id)))
@@ -181,7 +184,7 @@ def patch_student(student_id:str,payload:StudentPatch,db:Session=Depends(get_db)
 def create_class(payload:ClassIn,db:Session=Depends(get_db),actor:User=Depends(admin)):
     if payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
-    item=CourseClass(**payload.model_dump());db.add(item);_flush(db, "That class code is already in use.");audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
+    item=CourseClass(**payload.model_dump());db.add(item);_flush(db, "That class code and type combination is already in use.");audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
 
 
 @router.get("/classes")

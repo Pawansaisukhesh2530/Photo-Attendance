@@ -54,3 +54,11 @@ export {
   useCreateStudent,
   type InfiniteStudents,
 } from './useStudents';
+export {
+  useCreateTimetableSlot,
+  useDeleteTimetableSlot,
+  useFacultyTimetable,
+  useMyTimetable,
+  useTimetableToday,
+  useUpdateTimetableSlot,
+} from './useTimetable';

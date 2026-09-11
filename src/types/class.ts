@@ -33,9 +33,13 @@ export interface CourseClass {
   subject: string;
   /** Programme/year code, e.g. "CSE-5". */
   classCode: string;
+  /** Class type: Lecture, Lab, Tutorial, etc. */
+  variant: string;
   section: string;
   /** Combined display label, e.g. "CSE-5A". */
   displayCode: string;
+  /** Derived class name: e.g. "CS 201 Lecture". */
+  className: string;
   semester: number;
   academicSession: string;
   facultyId: Id;
@@ -105,6 +109,7 @@ export interface ClassQuery extends PageRequest {
 export interface CreateClassRequest {
   subject: string;
   classCode: string;
+  variant?: string;
   section: string;
   semester: number;
   department: string;
@@ -119,6 +124,7 @@ export interface UpdateClassRequest {
   classId: Id;
   subject?: string;
   classCode?: string;
+  variant?: string;
   section?: string;
   semester?: number;
   department?: string;

@@ -23,11 +23,13 @@ import {
   SkeletonCard,
   Text,
   useToast,
+  WeeklyTimetable,
   type IconName,
 } from '@/components';
 import { useInfiniteClasses, useAssignFaculty } from '@/hooks/useClassAdmin';
 import { useFacultyMember, useSetFacultyStatus } from '@/hooks/useFacultyAdmin';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useFacultyTimetable } from '@/hooks/useTimetable';
 import { palette, radius, spacing, useResponsive } from '@/theme';
 import type { CourseClass, FacultyStatus } from '@/types';
 import { formatShortDate } from '@/utils/datetime';
@@ -85,6 +87,7 @@ export default function AdminFacultyProfileScreen() {
 
   const setStatus = useSetFacultyStatus();
   const assign = useAssignFaculty();
+  const { data: timetableSlots, isLoading: timetableLoading } = useFacultyTimetable(facultyId);
 
   const [statusSheet, setStatusSheet] = useState(false);
   const [assignSheet, setAssignSheet] = useState(false);
@@ -370,6 +373,42 @@ export default function AdminFacultyProfileScreen() {
               style={styles.assignButton}
             />
           ) : null}
+        </View>
+
+        {/* Weekly timetable */}
+        <View style={styles.block}>
+          <SectionHeader
+            title="Weekly timetable"
+            meta={
+              timetableSlots
+                ? `${timetableSlots.length} slot${timetableSlots.length === 1 ? '' : 's'}`
+                : undefined
+            }
+            actionLabel="Edit"
+            onAction={() =>
+              router.push({
+                pathname: '/(admin)/timetable' as never,
+                params: { facultyId },
+              })
+            }
+            divider
+          />
+
+          {timetableLoading ? (
+            <SkeletonCard height={200} />
+          ) : !timetableSlots || timetableSlots.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="calendar"
+                title="No timetable"
+                message="No timetable slots have been created for this faculty member yet."
+              />
+            </Card>
+          ) : (
+            <Card padded={false}>
+              <WeeklyTimetable slots={timetableSlots} />
+            </Card>
+          )}
         </View>
       </Screen>
 

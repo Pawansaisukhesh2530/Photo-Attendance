@@ -90,6 +90,7 @@ export default function AdminLayout() {
         <Tabs.Screen name="reports" options={{ href: null }} />
         <Tabs.Screen name="audit" options={{ href: null }} />
         <Tabs.Screen name="settings" options={{ href: null }} />
+        <Tabs.Screen name="timetable" options={{ href: null }} />
       </Tabs>
     </AuthGuard>
   );

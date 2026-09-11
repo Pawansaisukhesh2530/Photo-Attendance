@@ -1,15 +1,17 @@
 import { useMemo } from 'react';
 
 import type { FacultyMetrics } from '@/components/domain/DashboardMetrics';
-import type { AttendanceSessionSummary, TodayClass } from '@/types';
+import type { AttendanceSessionSummary, TodayClass, TimetableSlot } from '@/types';
 import { deriveFacultyMetrics } from '@/utils/facultyMetrics';
 
 import { useAttendanceHistory } from './useAttendance';
-import { useClasses, useTodayClasses } from './useClasses';
+import { useClasses } from './useClasses';
+import { useTimetableToday } from './useTimetable';
 
 export interface FacultyDashboard {
   metrics: FacultyMetrics;
   todayClasses: TodayClass[];
+  todaySlots: TimetableSlot[];
   recentSessions: AttendanceSessionSummary[];
   isLoading: boolean;
   isRefreshing: boolean;
@@ -17,44 +19,63 @@ export interface FacultyDashboard {
   refetch: () => void;
 }
 
-/**
- * Composes the faculty dashboard from the existing service calls.
- *
- * The metrics are derived on the client from today's schedule, the assigned classes and
- * recent history rather than fetched. That is a deliberate interim choice: a real backend
- * will almost certainly expose a single `GET /dashboard/summary`, and when it does, only
- * this hook changes — no screen or component touches the derivation. Deriving here also
- * avoids inventing a service method that the agreed contract does not yet contain.
- *
- * The one caveat worth stating for the backend developer: `pendingReviews` counts review
- * items across the sessions this client happens to have fetched. It is a display figure,
- * not an authoritative total, and the server should own it once available.
- */
+function slotToTodayClass(slot: TimetableSlot): TodayClass {
+  return {
+    id: slot.class_id ?? '',
+    subject: slot.subject ?? '',
+    classCode: slot.class_code ?? '',
+    variant: slot.variant ?? 'Lecture',
+    className: slot.class_name,
+    section: '',
+    displayCode: slot.class_code ?? '',
+    semester: 0,
+    academicSession: '',
+    facultyId: slot.faculty_id,
+    facultyName: '',
+    studentCount: 0,
+    attendancePercentage: 0,
+    schedule: [],
+    status: 'ACTIVE',
+    date: new Date().toISOString().slice(0, 10),
+    startTime: slot.start_time?.slice(0, 5) ?? '',
+    endTime: slot.end_time?.slice(0, 5) ?? '',
+    room: slot.room ?? '',
+    attendanceState: 'PENDING',
+    sessionId: null,
+    presentCount: null,
+    lastCapturedAt: null,
+  };
+}
+
 export function useFacultyDashboard(): FacultyDashboard {
-  const today = useTodayClasses();
+  const today = useTimetableToday();
   const classes = useClasses();
   const history = useAttendanceHistory();
+
+  const todayClasses = useMemo(() => {
+    if (!today.data) return [];
+    return today.data
+      .filter((s) => s.slot_type === 'CLASS')
+      .map(slotToTodayClass);
+  }, [today.data]);
 
   const metrics = useMemo<FacultyMetrics>(
     () =>
       deriveFacultyMetrics({
-        todayClasses: today.data ?? [],
+        todayClasses,
         classes: classes.data ?? [],
         sessions: history.data ?? [],
       }),
-    [today.data, classes.data, history.data],
+    [todayClasses, classes.data, history.data],
   );
 
   return {
     metrics,
-    todayClasses: today.data ?? [],
-    // The dashboard shows only the three most recent, matching the Stitch panel.
+    todayClasses,
+    todaySlots: today.data ?? [],
     recentSessions: (history.data ?? []).slice(0, 3),
-    // Only a first load counts as loading; a background refetch must not blank the screen.
     isLoading: today.isLoading || classes.isLoading || history.isLoading,
     isRefreshing: today.isRefetching || classes.isRefetching || history.isRefetching,
-    // Today's schedule is the screen's reason to exist, so its failure is the one that
-    // turns the whole screen into an error state. The others degrade quietly.
     error: today.error,
     refetch: () => {
       void today.refetch();

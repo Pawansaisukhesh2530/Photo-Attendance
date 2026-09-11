@@ -347,4 +347,11 @@ export const queryKeys = {
     all: ['settings'] as const,
     institution: ['settings', 'institution'] as const,
   },
+
+  timetable: {
+    all: ['timetable'] as const,
+    mine: ['timetable', 'mine'] as const,
+    today: (facultyId: string) => ['timetable', 'today', facultyId] as const,
+    faculty: (facultyId: string) => ['timetable', 'faculty', facultyId] as const,
+  },
 } as const;

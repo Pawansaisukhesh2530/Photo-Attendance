@@ -95,3 +95,13 @@ export type {
   AuditEntry,
   AuditQuery,
 } from './audit';
+
+export type {
+  CreateTimetableSlotRequest,
+  SlotType,
+  TimetableQuery,
+  TimetableSlot,
+  UpdateTimetableSlotRequest,
+} from './timetable';
+
+export { DAY_LABELS, DAY_SHORT } from './timetable';

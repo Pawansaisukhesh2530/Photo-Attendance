@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from .models import AttendanceStatus, FacultyStatus, Role, SessionStatus
+from .models import AttendanceStatus, FacultyStatus, Role, SessionStatus, SlotType
 
 T = TypeVar("T")
 
@@ -121,21 +121,33 @@ class StudentOut(StudentIn):
 
 class ClassIn(BaseModel):
     code: str = Field(min_length=1, max_length=50)
+    variant: str = Field(default="Lecture", max_length=40)
     subject: str = Field(min_length=1, max_length=200)
     department: str = Field(min_length=1, max_length=120)
     semester: int = Field(ge=1, le=16)
     section: str = Field(min_length=1, max_length=20)
     academic_session: str = Field(min_length=1, max_length=30)
 
+    @field_validator("variant")
+    @classmethod
+    def normalize_variant(cls, v: str) -> str:
+        return v.strip().title()
+
 
 class ClassPatch(BaseModel):
     subject: str | None = Field(default=None, min_length=1)
+    variant: str | None = Field(default=None, max_length=40)
     department: str | None = Field(default=None, min_length=1)
     semester: int | None = Field(default=None, ge=1, le=16)
     section: str | None = Field(default=None, min_length=1)
     academic_session: str | None = Field(default=None, min_length=1)
     archived: bool | None = None
     version: int
+
+    @field_validator("variant")
+    @classmethod
+    def normalize_variant(cls, v: str | None) -> str | None:
+        return v.strip().title() if v is not None else v
 
 
 class ClassOut(ClassIn):
@@ -224,3 +236,67 @@ class SettingsOut(BaseModel):
 
     departments: list[str] = ["CSE"]
     faculty_roles: list[str] = ["Assistant Professor"]
+
+
+class TimetableSlotIn(BaseModel):
+    faculty_id: str
+    class_id: str | None = None
+    slot_type: SlotType = SlotType.CLASS
+    day_of_week: int = Field(ge=1, le=5)
+    start_time: time
+    end_time: time
+    room: str | None = None
+    break_label: str | None = None
+
+    @model_validator(mode="after")
+    def validate_slot(self):
+        if self.start_time >= self.end_time:
+            raise ValueError("end_time must be after start_time")
+        if self.slot_type == SlotType.CLASS and self.class_id is None:
+            raise ValueError("class_id is required for CLASS slots")
+        if self.slot_type == SlotType.FREE and self.class_id is not None:
+            raise ValueError("class_id must be null for FREE slots")
+        return self
+
+
+class TimetableSlotPatch(BaseModel):
+    class_id: str | None = None
+    slot_type: SlotType | None = None
+    day_of_week: int | None = Field(default=None, ge=1, le=5)
+    start_time: time | None = None
+    end_time: time | None = None
+    room: str | None = None
+    break_label: str | None = None
+    version: int
+
+    @model_validator(mode="after")
+    def validate_slot(self):
+        st = self.slot_type
+        cid = self.class_id
+        if st is not None and st == SlotType.CLASS and cid is None:
+            raise ValueError("class_id is required for CLASS slots")
+        if st is not None and st == SlotType.FREE and cid is not None:
+            raise ValueError("class_id must be null for FREE slots")
+        if self.start_time is not None and self.end_time is not None and self.start_time >= self.end_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+
+class TimetableSlotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    faculty_id: str
+    class_id: str | None
+    slot_type: SlotType
+    day_of_week: int
+    day_label: str
+    start_time: time
+    end_time: time
+    time_label: str
+    room: str | None
+    break_label: str | None
+    class_name: str
+    class_code: str | None
+    subject: str | None
+    variant: str | None
+    version: int

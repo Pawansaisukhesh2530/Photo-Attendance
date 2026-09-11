@@ -141,3 +141,7 @@ export {
 } from './domain/StudentProfileView';
 export { StudentRosterRow, type StudentRosterRowProps } from './domain/StudentRosterRow';
 export { StudentStatRow, type StudentStatRowProps } from './domain/StudentStatRow';
+export {
+  WeeklyTimetable,
+  type WeeklyTimetableProps,
+} from './domain/WeeklyTimetable';

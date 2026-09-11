@@ -12,6 +12,7 @@ from .errors import Problem, problem_handler
 from .routes_admin import router as admin_router
 from .routes_attendance import router as attendance_router
 from .routes_auth import router as auth_router
+from .routes_timetable import router as timetable_router
 from .security import require_roles
 from .models import Role, User
 from fastapi import Depends
@@ -52,6 +53,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(attendance_router, prefix="/api/v1")
+app.include_router(timetable_router, prefix="/api/v1")
 
 
 def custom_openapi():

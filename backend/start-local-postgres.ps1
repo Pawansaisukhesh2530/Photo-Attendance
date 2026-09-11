@@ -1,6 +1,6 @@
 param(
   [string]$User = "postgres",
-  [string]$Password = $env:PGPASSWORD,
+  [string]$Password,
   [string]$Database = "edutrace",
   [int]$Port = 8010,
   [string]$Python = "$PSScriptRoot\.venv\Scripts\python.exe",

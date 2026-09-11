@@ -22,6 +22,7 @@ import type {
   CourseClass,
   CreateClassRequest,
   CreateFacultyRequest,
+  CreateTimetableSlotRequest,
   Faculty,
   FacultyQuery,
   FacultyStatus,
@@ -33,10 +34,13 @@ import type {
   Paginated,
   PanoramaPreview,
   PreparePanoramaRequest,
+  TimetableQuery,
+  TimetableSlot,
   UpdateClassRequest,
   UpdateEnrolmentRequest,
   UpdateFacultyRequest,
   UpdateSettingsRequest,
+  UpdateTimetableSlotRequest,
   ProcessingProgress,
   ReportQuery,
   ReportStudentQuery,
@@ -281,3 +285,13 @@ export interface AuditService {
 
 /** Convenience alias used by hooks that need a status value in a callback signature. */
 export type StatusChange = { recordId: Id; status: AttendanceStatus };
+
+export interface TimetableService {
+  getMyTimetable(): Promise<TimetableSlot[]>;
+  getMyTodayClasses(): Promise<TimetableSlot[]>;
+  getTimetable(query?: TimetableQuery): Promise<Paginated<TimetableSlot>>;
+  getFacultyTimetable(facultyId: Id): Promise<TimetableSlot[]>;
+  createSlot(request: CreateTimetableSlotRequest): Promise<TimetableSlot>;
+  updateSlot(request: UpdateTimetableSlotRequest): Promise<TimetableSlot>;
+  deleteSlot(slotId: Id): Promise<void>;
+}

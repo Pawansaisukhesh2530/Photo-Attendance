@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from .config import get_settings
@@ -28,6 +28,11 @@ class FacultyStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     ON_LEAVE = "ON_LEAVE"
+
+
+class SlotType(str, enum.Enum):
+    CLASS = "CLASS"
+    FREE = "FREE"
 
 
 class SessionStatus(str, enum.Enum):
@@ -102,14 +107,17 @@ class Student(Versioned, Base):
 
 class CourseClass(Versioned, Base):
     __tablename__ = "classes"
+    __table_args__ = (UniqueConstraint("code", "variant"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
-    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(50), index=True)
+    variant: Mapped[str] = mapped_column(String(40), default="Lecture", server_default="Lecture")
     subject: Mapped[str] = mapped_column(String(200))
     department: Mapped[str] = mapped_column(String(120), index=True)
     semester: Mapped[int] = mapped_column(Integer)
     section: Mapped[str] = mapped_column(String(20))
     academic_session: Mapped[str] = mapped_column(String(30))
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    timetable_slots: Mapped[list["TimetableSlot"]] = relationship(back_populates="course_class", lazy="selectin")
 
 
 class FacultyClassAssignment(Base):
@@ -269,6 +277,29 @@ class AuditEntry(Base):
     after: Mapped[dict | None] = mapped_column(JSON)
     reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class TimetableSlot(Versioned, Base):
+    __tablename__ = "timetable_slots"
+    __table_args__ = (
+        UniqueConstraint("faculty_id", "class_id", "day_of_week", "start_time",
+                         name="uq_timetable_class"),
+        CheckConstraint("slot_type != 'CLASS' OR class_id IS NOT NULL",
+                        name="ck_timetable_class_requires_class_id"),
+        CheckConstraint("slot_type != 'FREE' OR class_id IS NULL",
+                        name="ck_timetable_free_must_be_null_class"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    faculty_id: Mapped[str] = mapped_column(ForeignKey("faculty.id", ondelete="CASCADE"), index=True)
+    class_id: Mapped[str | None] = mapped_column(ForeignKey("classes.id", ondelete="RESTRICT"))
+    slot_type: Mapped[SlotType] = mapped_column(Enum(SlotType), default=SlotType.CLASS)
+    day_of_week: Mapped[int] = mapped_column(Integer)
+    start_time: Mapped[time] = mapped_column(Time)
+    end_time: Mapped[time] = mapped_column(Time)
+    room: Mapped[str | None] = mapped_column(String(80))
+    break_label: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    course_class: Mapped["CourseClass | None"] = relationship(back_populates="timetable_slots")
 
 
 class InstitutionSettings(Versioned, Base):

@@ -19,8 +19,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useFacultyDashboard } from '@/hooks/useFacultyDashboard';
 import { palette, spacing } from '@/theme';
-import type { AttendanceSessionSummary, TodayClass } from '@/types';
-import { formatLongDate, greetingForNow } from '@/utils/datetime';
+import type { AttendanceSessionSummary, TodayClass, TimetableSlot } from '@/types';
+import { formatLongDate, formatScheduleTime, greetingForNow } from '@/utils/datetime';
 
 /**
  * Faculty dashboard — the app's home.
@@ -37,8 +37,16 @@ import { formatLongDate, greetingForNow } from '@/utils/datetime';
  */
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const { metrics, todayClasses, recentSessions, isLoading, isRefreshing, error, refetch } =
-    useFacultyDashboard();
+  const {
+    metrics,
+    todayClasses,
+    todaySlots,
+    recentSessions,
+    isLoading,
+    isRefreshing,
+    error,
+    refetch,
+  } = useFacultyDashboard();
 
   // Surname only, matching the Stitch greeting "Good Morning, Dr. Sharma".
   const shortName = (() => {
@@ -69,6 +77,9 @@ export default function DashboardScreen() {
       params: { classId: session.classId, sessionId: session.id },
     });
   }, []);
+
+  // Build a map from class_id to TodayClass for CLASS slots
+  const classMap = new Map(todayClasses.map((c) => [c.id, c]));
 
   const header = (
     <AppHeader
@@ -146,14 +157,16 @@ export default function DashboardScreen() {
               <SectionHeader
                 title="Today's Classes"
                 meta={
-                  metrics.todayClassCount === 1
-                    ? '1 scheduled'
-                    : `${metrics.todayClassCount} scheduled`
+                  todaySlots.length === 0
+                    ? 'no classes'
+                    : todaySlots.length === 1
+                      ? '1 slot'
+                      : `${todaySlots.length} slots`
                 }
                 divider
               />
 
-              {todayClasses.length === 0 ? (
+              {todaySlots.length === 0 ? (
                 <Card>
                   <EmptyState
                     icon="calendar"
@@ -165,20 +178,47 @@ export default function DashboardScreen() {
                 </Card>
               ) : (
                 <View style={styles.cardStack}>
-                  {todayClasses.map((item) => (
-                    <ClassCard
-                      key={item.id}
-                      item={item}
-                      onTakeAttendance={handleTakeAttendance}
-                      onViewRecord={handleViewRecord}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/(faculty)/class/[classId]',
-                          params: { classId: item.id },
-                        })
-                      }
-                    />
-                  ))}
+                  {todaySlots.map((slot) => {
+                    if (slot.slot_type === 'CLASS') {
+                      const todayClass = classMap.get(slot.class_id ?? '');
+                      if (!todayClass) return null;
+                      return (
+                        <ClassCard
+                          key={`class-${slot.id}`}
+                          item={todayClass}
+                          onTakeAttendance={handleTakeAttendance}
+                          onViewRecord={handleViewRecord}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/(faculty)/class/[classId]',
+                              params: { classId: todayClass.id },
+                            })
+                          }
+                        />
+                      );
+                    }
+
+                    // FREE slot — greyed, non-actionable
+                    return (
+                      <View key={`free-${slot.id}`} style={styles.freeSlot}>
+                        <View style={styles.freeSlotTime}>
+                          <Icon name="clock" size={16} color={palette.onSurfaceVariant} />
+                          <Text variant="labelMd" color={palette.onSurfaceVariant}>
+                            {formatScheduleTime(slot.start_time ?? '')}
+                          </Text>
+                          <Text variant="labelMd" color={palette.outlineVariant}>
+                            —
+                          </Text>
+                          <Text variant="labelMd" color={palette.onSurfaceVariant}>
+                            {formatScheduleTime(slot.end_time ?? '')}
+                          </Text>
+                        </View>
+                        <Text variant="bodyMd" color={palette.outlineVariant}>
+                          Free Period
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -243,5 +283,17 @@ const styles = StyleSheet.create({
   cardStack: {
     gap: spacing.md,
     marginTop: spacing.xs,
+  },
+  freeSlot: {
+    backgroundColor: palette.surfaceVariant,
+    borderRadius: 12,
+    padding: spacing.md,
+    opacity: 0.6,
+    gap: spacing.xs,
+  },
+  freeSlotTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
 });
