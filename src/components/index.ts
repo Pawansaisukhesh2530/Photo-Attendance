@@ -87,7 +87,6 @@ export {
 // Domain
 export {
   AttendanceStatusBadge,
-  attendanceStatusLabel,
   type AttendanceStatusBadgeProps,
 } from './domain/AttendanceStatusBadge';
 export {
@@ -121,7 +120,6 @@ export {
   type ClassAttendanceBarProps,
 } from './domain/ClassAttendanceBar';
 export { ClassCodeTag, type ClassCodeTagProps } from './domain/ClassCodeTag';
-export { ClassListCard, type ClassListCardProps } from './domain/ClassListCard';
 export { ClassSelectRow, type ClassSelectRowProps } from './domain/ClassSelectRow';
 export {
   DashboardMetrics,

@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
@@ -230,7 +230,6 @@ async def prepare_panorama_frames(frames: list[UploadFile] = File(...), db: Sess
 
     try:
         import cv2
-        import numpy as np
     except ImportError as exc:
         raise Problem(503, "Panorama unavailable", "The panorama processor is not installed on this server.") from exc
 

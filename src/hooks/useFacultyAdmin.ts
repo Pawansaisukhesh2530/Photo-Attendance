@@ -34,14 +34,6 @@ import type {
 
 export type InfiniteFaculty = UseInfiniteQueryResult<InfiniteData<Paginated<Faculty>>>;
 
-/** A single page. For pickers that want a fixed slice rather than a scrollable list. */
-export function useFacultyPage(query?: FacultyQuery): UseQueryResult<Paginated<Faculty>> {
-  return useQuery({
-    queryKey: queryKeys.faculty.list(query),
-    queryFn: () => facultyService.getFacultyList(query),
-  });
-}
-
 export function useInfiniteFaculty(query?: FacultyQuery): InfiniteFaculty {
   const { page: _page, pageSize, ...filters } = query ?? {};
   const size = pageSize ?? DEFAULT_PAGE_SIZE;

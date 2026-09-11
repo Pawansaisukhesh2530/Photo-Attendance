@@ -3,7 +3,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { classService } from '@/services';
 import { useAuthStore } from '@/store/authStore';
 import { queryKeys } from '@/store/queryClient';
-import type { ClassQuery, CourseClass, TodayClass } from '@/types';
+import type { ClassQuery, CourseClass } from '@/types';
 
 /**
  * Class data hooks.
@@ -27,22 +27,5 @@ export function useClass(classId: string | undefined): UseQueryResult<CourseClas
     queryKey: queryKeys.classes.detail(classId ?? ''),
     queryFn: () => classService.getClass(classId!),
     enabled: Boolean(classId),
-  });
-}
-
-/**
- * Today's schedule for the signed-in faculty member.
- *
- * Kept fresher than other resources (10s) because a lecturer may finalize a register
- * and immediately return to the dashboard expecting the card to have flipped state.
- */
-export function useTodayClasses(): UseQueryResult<TodayClass[]> {
-  const facultyId = useAuthStore((state) => state.user?.id);
-
-  return useQuery({
-    queryKey: queryKeys.classes.today(facultyId ?? ''),
-    queryFn: () => classService.getTodayClasses(facultyId!),
-    enabled: Boolean(facultyId),
-    staleTime: 10_000,
   });
 }

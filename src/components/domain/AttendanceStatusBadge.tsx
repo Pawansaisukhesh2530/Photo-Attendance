@@ -51,7 +51,3 @@ export function AttendanceStatusBadge({
     />
   );
 }
-
-export function attendanceStatusLabel(status: AttendanceStatus): string {
-  return LABELS[status];
-}

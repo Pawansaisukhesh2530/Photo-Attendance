@@ -167,8 +167,3 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     await deleteStoredItem(PREFERENCES_KEY).catch(() => {});
   },
 }));
-
-/** Selector helpers, so components subscribe narrowly and re-render less. */
-export const selectMotionPreference = (state: PreferencesState): MotionPreference => state.motion;
-export const selectShowCameraFramingGuide = (state: PreferencesState): boolean =>
-  state.showCameraFramingGuide;

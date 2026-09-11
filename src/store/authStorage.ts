@@ -86,10 +86,3 @@ export async function deleteStoredItem(key: string): Promise<void> {
   await SecureStore.deleteItemAsync(key);
 }
 
-/**
- * True when the platform can persist a session across a full restart.
- *
- * Lets the UI describe "Remember me" honestly rather than offering a promise the platform
- * cannot keep.
- */
-export const canPersistSession = isWeb ? webStorage() !== null : true;

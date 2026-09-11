@@ -1,6 +1,4 @@
 import hashlib
-from datetime import datetime, timezone
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,7 +6,7 @@ from .config import get_settings
 from .errors import Problem
 from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass, AttendanceSessionImage,
                      AttendanceStatus, AuditEntry, CourseClass, Enrolment, Faculty,
-                     FacultyClassAssignment, RecognitionJob, SessionStatus, Student, User)
+                     FacultyClassAssignment, SessionStatus, User)
 
 
 def audit(db: Session, actor: User, action: str, entity, before=None, after=None, reason=None) -> None:

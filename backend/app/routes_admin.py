@@ -11,8 +11,8 @@ from .errors import Problem
 from .models import (AttendanceRecord,AttendanceSession,AttendanceSessionClass,AttendanceStatus,AuditEntry, CourseClass, Enrolment, Faculty, FacultyClassAssignment,
                      FacultyStatus, InstitutionSettings, Role, SessionStatus, Student, StudentFaceEmbedding, StudentFaceImage, TimetableSlot, User)
 from .config import get_settings
-from .schemas import (AssignmentRequest, ClassIn, ClassOut, ClassPatch, EnrolmentUpdate,
-                      FacultyIn, FacultyOut, FacultyPatch, Page, SettingsOut, SettingsPatch,
+from .schemas import (AssignmentRequest, ClassIn, ClassPatch, EnrolmentUpdate,
+                      FacultyIn, FacultyPatch, Page, SettingsOut, SettingsPatch,
                       StudentIn, StudentOut, StudentPatch)
 from .security import hash_password, require_roles
 

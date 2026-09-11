@@ -188,7 +188,3 @@ export function wireAuthToApiClient(): void {
   });
 }
 
-/** Selector helpers, so components subscribe narrowly and re-render less. */
-export const selectUser = (state: AuthState): User | null => state.user;
-export const selectIsAuthenticated = (state: AuthState): boolean =>
-  state.status === 'authenticated';

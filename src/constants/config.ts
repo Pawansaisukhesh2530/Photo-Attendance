@@ -47,10 +47,3 @@ export const PHOTO_COMPRESSION_QUALITY = 0.92;
 /** Page size for virtualised rosters and history lists. */
 export const DEFAULT_PAGE_SIZE = 25;
 
-/**
- * Upper bound the server will honour for `pageSize`.
- *
- * Present so a client cannot turn a paged endpoint back into an unpaged one by asking for
- * everything at once. The backend enforces it too.
- */
-export const MAX_PAGE_SIZE = 100;
