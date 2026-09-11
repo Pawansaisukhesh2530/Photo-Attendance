@@ -36,7 +36,6 @@ services:
     build: .
     env_file: .env
     command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=1
-    volumes: ["./models:/models:ro"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_started}

@@ -14,11 +14,15 @@ import type { ClassQuery, CourseClass } from '@/types';
  */
 
 export function useClasses(query?: ClassQuery): UseQueryResult<CourseClass[]> {
-  const facultyId = useAuthStore((state) => state.user?.id);
+  const user = useAuthStore((state) => state.user);
+  // Auth users and faculty profiles have different IDs in the database. Faculty requests are
+  // already restricted to the signed-in teacher by the backend, so passing the auth user ID as a
+  // faculty filter would intersect the correct scope with an unrelated ID and return no classes.
+  const facultyId = user?.role === 'ADMIN' ? query?.facultyId : undefined;
 
   return useQuery({
-    queryKey: queryKeys.classes.list(query?.facultyId ?? facultyId),
-    queryFn: () => classService.getClasses({ ...query, facultyId: query?.facultyId ?? facultyId }),
+    queryKey: queryKeys.classes.list(facultyId ?? user?.id ?? ''),
+    queryFn: () => classService.getClasses({ ...query, facultyId }),
   });
 }
 

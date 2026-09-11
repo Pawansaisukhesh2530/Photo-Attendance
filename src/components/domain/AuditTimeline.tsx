@@ -12,10 +12,10 @@ export interface AuditTimelineProps {
 }
 
 /** Presentation per action: glyph, tint, and a human sentence. */
-const ACTION_META: Record<
+const ACTION_META: Partial<Record<
   AuditAction,
   { icon: IconName; accent: string; well: string; title: string }
-> = {
+>> = {
   ATTENDANCE_CAPTURED: {
     icon: 'camera',
     accent: palette.primary,
@@ -116,8 +116,10 @@ const ACTION_META: Record<
   },
 };
 
-function StatusChip({ status, muted = false }: { status: AttendanceStatus; muted?: boolean }) {
-  const tokens = statusColors[status];
+function StatusChip({ status, muted = false }: { status: AttendanceStatus | string; muted?: boolean }) {
+  // API data can outlive the frontend's union type. Keep an unknown future value from taking down
+  // the whole dashboard while still displaying the value for diagnosis.
+  const tokens = statusColors[status as AttendanceStatus] ?? statusColors.UNKNOWN;
   return (
     <View style={[styles.chip, muted && styles.chipMuted]}>
       <View style={[styles.dot, { backgroundColor: tokens.accent }]} />

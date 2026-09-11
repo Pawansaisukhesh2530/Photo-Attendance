@@ -59,7 +59,7 @@ import type {
 
 export interface AuthService {
   login(request: LoginRequest): Promise<AuthSession>;
-  logout(): Promise<void>;
+  logout(refreshToken?: string): Promise<void>;
   getCurrentUser(): Promise<User>;
   requestPasswordReset(request: ForgotPasswordRequest): Promise<void>;
   refresh(refreshToken: string): Promise<AuthSession>;

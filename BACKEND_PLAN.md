@@ -2,7 +2,7 @@
 
 ## Implementation status
 
-The repository contains a working local beta of this plan: FastAPI, SQLAlchemy, Alembic, PostgreSQL, local private storage, a local recognition worker, OpenCV YuNet/SFace recognition, authentication, administration, face enrolment, classroom and panorama attendance, review, finalization, exports, and audit routes are implemented. The Docker/Celery/Redis/MinIO/SCRFD/ArcFace items below describe the production direction; they are not required for the local Windows workflow in [`backend/README.md`](backend/README.md).
+The repository contains a working local beta of this plan: FastAPI, SQLAlchemy, Alembic, PostgreSQL, local private storage, a local recognition worker, InsightFace detection/alignment with ArcFace embeddings, authentication, administration, face enrolment, classroom and panorama attendance, review, finalization, exports, and audit routes are implemented. Docker/Celery/Redis/MinIO remain the production runtime direction.
 
 ## Goal
 
@@ -12,9 +12,9 @@ Build a standalone FastAPI backend for authentication, institution administratio
 
 - FastAPI and Pydantic provide the versioned REST API and OpenAPI contract.
 - SQLAlchemy 2 and Alembic manage PostgreSQL 17 with pgvector.
-- Celery and Redis execute recognition jobs outside request handlers.
-- S3-compatible object storage holds private source images; MinIO is used locally.
-- ONNX Runtime loads separately licensed SCRFD and ArcFace-compatible ONNX models, preferring CUDA and falling back to CPU.
+- The supported native-Windows beta uses a durable local worker; the Docker deployment uses Celery and Redis so recognition remains outside request handlers.
+- The native-Windows beta uses private local storage; the Docker deployment uses S3-compatible MinIO storage.
+- InsightFace `buffalo_l` uses SCRFD-10GF detection and a ResNet50 ArcFace recognition model to produce normalized 512-dimensional embeddings. High-resolution classroom images also use overlapping tiled detection.
 - Docker Compose runs PostgreSQL, Redis, MinIO, the API, and one GPU worker.
 
 ## Core invariants
@@ -35,13 +35,13 @@ Build a standalone FastAPI backend for authentication, institution administratio
 1. Validate and privately store uploads.
 2. Decode safely, normalize orientation, and calculate quality metrics.
 3. Detect at multiple scales and overlapping tiles; merge duplicate boxes.
-4. Align detected faces and generate normalized embeddings in GPU batches.
+4. Align detected faces and generate normalized embeddings outside the API process.
 5. Compare only with active embeddings in the selected-class candidate set.
 6. Aggregate scores per student and retain leading candidates as evidence.
 7. Apply calibrated acceptance and ambiguity thresholds.
 8. Merge repeated sightings across images and upsert one record per eligible student.
 
-Real model weights are deployment inputs. Public InsightFace weights must not be shipped unless their license is appropriate for the institution.
+Real InsightFace-compatible detector and recognition weights are deployment inputs. Public pretrained model packages are for non-commercial research, so their licences must be approved for the institution before redistribution or deployment.
 
 ## Capacity target
 

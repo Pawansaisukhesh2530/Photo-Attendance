@@ -4,7 +4,7 @@
 
 EduTrace Pro is an Expo/React Native attendance application backed by FastAPI and PostgreSQL. The checked-in application supports administrator and faculty roles, student/class/faculty management, class enrollment, face-photo enrollment, standard classroom-photo attendance, a guided panorama capture, gallery upload for testing, manual attendance correction, audit history, and CSV/XLSX/PDF/JSON exports.
 
-The local computer-vision backend uses OpenCV YuNet for face detection and SFace for embeddings. It accepts JPEG, PNG, and HEIC/HEIF phone images. Large phone images are resized for detection and mapped back to full-resolution coordinates for result overlays.
+The local recognition backend uses InsightFace `buffalo_l`: SCRFD-10GF detects and aligns faces, and its ResNet50 ArcFace model produces normalized 512-dimensional embeddings. It accepts JPEG, PNG, and HEIC/HEIF phone images. Large classroom images are processed as a full image plus overlapping tiles, and boxes are mapped back to original coordinates for result overlays.
 
 Last validation performed on September 6, 2026:
 
@@ -46,11 +46,11 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 ```
 
-Place these separately obtained OpenCV-compatible models in `backend/models/`:
+The test setup downloads this InsightFace package beneath `backend/models/`:
 
 ```text
-face_detection_yunet.onnx
-face_recognition_sface.onnx
+models/insightface/models/buffalo_l/det_10g.onnx
+models/insightface/models/buffalo_l/w600k_r50.onnx
 ```
 
 The model files are intentionally excluded from Git. Confirm their license before redistributing them.
@@ -107,7 +107,7 @@ Change or remove seeded credentials before any shared or production deployment.
 2. Create faculty, students, and classes.
 3. Assign faculty to a class and enroll students from the class detail page.
 4. Open each student and upload one or more clear enrollment photos. The mobile picker can upload them incrementally.
-5. Confirm at least three photos show `Ready`. Each enrollment photo must contain exactly one clear, well-lit face.
+5. Confirm at least one photo shows `Ready`; three to five varied photos are recommended. Each enrollment photo must contain exactly one clear, well-lit face.
 6. Sign in as faculty, select a class, and take attendance with Photo or Panorama.
 7. For desktop testing, use the class detail `Upload test photo` action.
 8. Review detected face boxes and unmatched faces, correct uncertain records if needed, and finalize attendance.
@@ -147,7 +147,7 @@ Run `git diff --check` before committing. Do not commit root/backend `.env` file
 
 During the latest local test, the classroom photo contained six detectable faces. All six remained unmatched because the roster had insufficient usable face enrollment data. One student had four saved photos, but only one was accepted: the other images contained two faces, no detectable face, or excessive blur. Uploading at least two more accepted single-person portraits is required before treating recognition results as meaningful.
 
-The local similarity threshold is `0.50`. Enrollment uses a conservative blur-variance floor of `15` plus brightness and exactly-one-face checks. Calibrate both quality and match thresholds with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
+The beta similarity threshold is `0.50`. Enrollment uses a conservative blur-variance floor of `15`, brightness and exactly-one-face checks, and rejects severe side profiles. Automatic matching requires at least one accepted enrolment image and skips classroom faces smaller than 32 pixels. InsightFace aligns and crops eligible faces from five landmarks before ArcFace embedding. Calibrate quality and match thresholds with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
 
 ## Production work still required
 

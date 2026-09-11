@@ -148,6 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async logout() {
+    const refreshToken = get().tokens?.refreshToken;
     // Clear local state first: a failed network call must never leave the user
     // stranded in a signed-in shell they cannot use.
     set({ status: 'unauthenticated', user: null, tokens: null, error: null, fieldErrors: null });
@@ -155,7 +156,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device-local preferences go with the session. These are shared staff-room devices, so one
     // lecturer's motion and camera settings must not greet the next person who signs in.
     await usePreferencesStore.getState().clear();
-    await authService.logout().catch(() => {});
+    await authService.logout(refreshToken).catch(() => {});
   },
 
   async refreshSession() {

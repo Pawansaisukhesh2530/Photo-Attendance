@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime, time, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, JSON, LargeBinary, String, Text, Time, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from .config import get_settings
@@ -360,6 +360,10 @@ class TimetableSlot(Versioned, Base):
                         name="ck_timetable_valid_day"),
         CheckConstraint("start_time < end_time",
                         name="ck_timetable_time_order"),
+        Index("ix_timetable_slots_faculty_day", "faculty_id", "day_of_week"),
+        Index("uq_timetable_free_start", "faculty_id", "day_of_week", "start_time",
+              unique=True, postgresql_where=text("slot_type = 'FREE'"),
+              sqlite_where=text("slot_type = 'FREE'")),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     faculty_id: Mapped[str] = mapped_column(ForeignKey("faculty.id", ondelete="CASCADE"), index=True)

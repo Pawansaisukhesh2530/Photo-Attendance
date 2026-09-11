@@ -64,7 +64,20 @@ def build_safe_unknown_records(db: Session, session: AttendanceSession) -> None:
     """Fallback used when model adapters are unavailable; uncertainty is never called absence."""
     for student_id in candidate_student_ids(db, session.id):
         existing = db.scalar(select(AttendanceRecord).where(AttendanceRecord.session_id == session.id, AttendanceRecord.student_id == student_id))
-        if not existing:
+        if existing:
+            replacement = AttendanceRecord(
+                id=existing.id, session_id=session.id, student_id=student_id,
+                ai_status=AttendanceStatus.UNKNOWN,
+                status=existing.status if existing.amended_at else AttendanceStatus.UNKNOWN,
+                score=None, review_reason="MODEL_UNAVAILABLE",
+                model_version=get_settings().model_version,
+                amended_by=existing.amended_by, amended_at=existing.amended_at,
+                amendment_reason=existing.amendment_reason, version=existing.version + 1,
+            )
+            db.delete(existing)
+            db.flush()
+            db.add(replacement)
+        else:
             db.add(AttendanceRecord(session_id=session.id, student_id=student_id, ai_status=AttendanceStatus.UNKNOWN,
                                     status=AttendanceStatus.UNKNOWN, score=None, review_reason="MODEL_UNAVAILABLE",
                                     model_version=get_settings().model_version))

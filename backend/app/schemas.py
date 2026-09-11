@@ -52,7 +52,6 @@ class UserOut(BaseModel):
 
 class FacultyIn(BaseModel):
     email: EmailStr
-    password: str = Field(default="ChangeMe123!",min_length=8)
     employee_id: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=200)
     department: str = Field(min_length=1, max_length=120)
@@ -90,6 +89,11 @@ class FacultyOut(BaseModel):
     name: str
     department: str
     designation: str
+    status: FacultyStatus
+    version: int
+
+
+class FacultyStatusPatch(BaseModel):
     status: FacultyStatus
     version: int
 

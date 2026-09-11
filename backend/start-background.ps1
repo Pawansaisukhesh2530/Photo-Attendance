@@ -10,19 +10,19 @@ $dataRoot = Join-Path $PSScriptRoot "data"
 $env:EDUTRACE_STORAGE_BACKEND = "local"
 $env:EDUTRACE_LOCAL_STORAGE_PATH = (Join-Path $dataRoot "private")
 $env:EDUTRACE_QUEUE_BACKEND = "local"
-$env:EDUTRACE_RECOGNITION_BACKEND = "opencv"
-$env:EDUTRACE_YUNET_MODEL_PATH = "models/face_detection_yunet.onnx"
-$env:EDUTRACE_SFACE_MODEL_PATH = "models/face_recognition_sface.onnx"
-$env:EDUTRACE_MODEL_VERSION = "opencv-yunet-sface-local-v3"
+$env:EDUTRACE_RECOGNITION_BACKEND = "insightface"
+$env:EDUTRACE_INSIGHTFACE_ROOT = "models\insightface"
+$env:EDUTRACE_MIN_ATTENDANCE_FACE_SIZE = "32"
 $env:EDUTRACE_MATCH_THRESHOLD = "0.50"
+$env:EDUTRACE_MIN_ENROLMENT_IMAGES = "1"
 $env:EDUTRACE_PGVECTOR_ENABLED = "false"
 
 & $python -m alembic upgrade head
 if ($LASTEXITCODE -ne 0) { throw "Database migration failed." }
 & $python -m app.seed --email admin@christuniversity.in --password LocalTest123!
 if ($LASTEXITCODE -ne 0) { throw "Administrator seed failed." }
-& $python -m app.seed --demo --password LocalTest123!
-if ($LASTEXITCODE -ne 0) { throw "Demo seed failed." }
+& $python -m app.download_models
+if ($LASTEXITCODE -ne 0) { throw "Model download failed." }
 
 $existing = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
 if ($existing) {

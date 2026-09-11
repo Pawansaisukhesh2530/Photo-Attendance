@@ -26,7 +26,9 @@ def upgrade() -> None:
             op.drop_constraint(uq["name"], "classes", type_="unique")
             break
 
-    op.create_unique_constraint("uq_classes_code_variant", "classes", ["code", "variant"])
+    existing_uniques = inspector.get_unique_constraints("classes")
+    if not any(uq["column_names"] == ["code", "variant"] for uq in existing_uniques):
+        op.create_unique_constraint("uq_classes_code_variant", "classes", ["code", "variant"])
 
 
 def downgrade() -> None:

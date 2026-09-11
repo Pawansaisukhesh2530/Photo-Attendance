@@ -65,13 +65,38 @@ def select_enrolment_face(faces):
     return None, len(distinct), secondary_ratio
 
 
-def resolve_student_status(student_id,has_gallery,best,ambiguous,conflicted,successful_images):
+def resolve_student_status(student_id,gallery_count,best,ambiguous,conflicted,successful_images):
+    if gallery_count<settings.min_enrolment_images:return AttendanceStatus.UNKNOWN,None,"INSUFFICIENT_ACTIVE_FACE_ENROLMENT"
     if student_id in conflicted:return AttendanceStatus.REVIEW,best.get(student_id,(None,None))[0],"DUPLICATE_IDENTITY_CLAIM"
     if student_id in ambiguous:return AttendanceStatus.REVIEW,None,"AMBIGUOUS_CANDIDATES"
     if student_id in best:return AttendanceStatus.PRESENT,best[student_id][0],None
-    if not has_gallery:return AttendanceStatus.UNKNOWN,None,"NO_ACTIVE_FACE_ENROLMENT"
     if successful_images==0:return AttendanceStatus.UNKNOWN,None,"NO_USABLE_SESSION_IMAGE"
     return AttendanceStatus.ABSENT,None,"NO_MATCH_OBSERVED"
+
+
+def _revoke_embedding(db, image_id: str) -> None:
+    existing=db.scalar(select(StudentFaceEmbedding).where(StudentFaceEmbedding.image_id==image_id))
+    if existing and existing.revoked_at is None:
+        existing.revoked_at=datetime.now(timezone.utc)
+
+
+def _reject_enrolment(db, image, quality: dict, reason: str) -> None:
+    image.quality={**quality,"status":"REJECTED","reason":reason}
+    _revoke_embedding(db,image.id)
+
+
+def _enrolment_pose_quality(face) -> tuple[bool, dict]:
+    points=np.asarray(face.landmarks,dtype=np.float32)
+    left_eye,right_eye=points[0],points[1]
+    face_width=max(1.0,face.box[2]-face.box[0])
+    if not np.any(left_eye) or not np.any(right_eye):
+        return False,{"eye_landmarks_available":False}
+    dx=float(abs(left_eye[0]-right_eye[0]));dy=float(abs(left_eye[1]-right_eye[1]))
+    eye_distance=float(np.linalg.norm(left_eye-right_eye))
+    eye_slope=dy/max(dx,1.0)
+    eye_distance_ratio=eye_distance/face_width
+    valid=eye_slope<=settings.max_enrolment_eye_slope and eye_distance_ratio>=settings.min_enrolment_eye_distance_ratio
+    return valid,{"eye_landmarks_available":True,"eye_slope":eye_slope,"eye_distance_ratio":eye_distance_ratio}
 
 
 @celery_app.task(bind=True, autoretry_for=(OSError,), retry_backoff=True, retry_kwargs={"max_retries": 3})
@@ -83,7 +108,7 @@ def process_face_enrolment(self, image_id: str) -> None:
         faces=engine.analyse(storage.get(image.object_key))
         face, distinct_face_count, secondary_face_area_ratio = select_enrolment_face(faces)
         if face is None:
-            image.quality={"status":"REJECTED","reason":"EXACTLY_ONE_FACE_REQUIRED","detected_faces":distinct_face_count}
+            _reject_enrolment(db,image,{"detected_faces":distinct_face_count},"EXACTLY_ONE_FACE_REQUIRED")
             return
         quality_context={
             "detected_faces": distinct_face_count,
@@ -93,23 +118,29 @@ def process_face_enrolment(self, image_id: str) -> None:
         }
         x1,y1,x2,y2=face.box
         if min(x2-x1,y2-y1)<80:
-            image.quality={**face.quality,**quality_context,"status":"REJECTED","reason":"FACE_TOO_SMALL"};return
+            _reject_enrolment(db,image,{**face.quality,**quality_context},"FACE_TOO_SMALL");return
         # Laplacian variance depends strongly on camera resolution and portrait
         # compression. The previous 35 cutoff rejected usable high-resolution
         # phone portraits (values around 18–34). Keep a lower safety floor while
         # retaining the one-face and brightness checks.
         if face.quality["blur_variance"]<settings.min_enrolment_blur_variance or not 35<=face.quality["mean_brightness"]<=220:
-            image.quality={**face.quality,**quality_context,"status":"REJECTED","reason":"IMAGE_QUALITY"};return
-        same_student=db.execute(select(StudentFaceEmbedding.embedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==image.student_id,StudentFaceImage.id!=image.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).scalars().all()
+            _reject_enrolment(db,image,{**face.quality,**quality_context},"IMAGE_QUALITY");return
+        pose_ok,pose_quality=_enrolment_pose_quality(face)
+        quality_context={**quality_context,**pose_quality}
+        if not pose_ok:
+            _reject_enrolment(db,image,{**face.quality,**quality_context},"UNSUPPORTED_FACE_POSE");return
+        same_student=db.execute(select(StudentFaceEmbedding.embedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==image.student_id,StudentFaceImage.id!=image.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None),StudentFaceEmbedding.model_version==settings.model_version)).scalars().all()
         if any(float(np.dot(face.embedding,np.asarray(value,dtype=np.float32)))>=settings.duplicate_template_threshold for value in same_student):
-            image.quality={**face.quality,"status":"REJECTED","reason":"DUPLICATE_TEMPLATE"};return
-        other=db.execute(select(StudentFaceImage.student_id,StudentFaceEmbedding.embedding).join(StudentFaceEmbedding,StudentFaceEmbedding.image_id==StudentFaceImage.id).where(StudentFaceImage.student_id!=image.student_id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).all()
+            _reject_enrolment(db,image,{**face.quality,**quality_context},"DUPLICATE_TEMPLATE");return
+        other=db.execute(select(StudentFaceImage.student_id,StudentFaceEmbedding.embedding).join(StudentFaceEmbedding,StudentFaceEmbedding.image_id==StudentFaceImage.id).where(StudentFaceImage.student_id!=image.student_id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None),StudentFaceEmbedding.model_version==settings.model_version)).all()
         suspicious=max((float(np.dot(face.embedding,np.asarray(value,dtype=np.float32))) for _,value in other),default=-1)
         existing=db.scalar(select(StudentFaceEmbedding).where(StudentFaceEmbedding.image_id==image.id))
         values=face.embedding.astype(float).tolist()
-        if existing:existing.embedding=values;existing.model_version=settings.model_version;existing.revoked_at=None
-        else:db.add(StudentFaceEmbedding(image_id=image.id,embedding=values,model_version=settings.model_version))
-        image.quality={**face.quality,**quality_context,"status":"CROSS_IDENTITY_REVIEW" if suspicious>=settings.cross_identity_review_threshold else "ACCEPTED","cross_identity_score":suspicious}
+        needs_review=suspicious>=settings.cross_identity_review_threshold
+        revoked_at=datetime.now(timezone.utc) if needs_review else None
+        if existing:existing.embedding=values;existing.model_version=settings.model_version;existing.revoked_at=revoked_at
+        else:db.add(StudentFaceEmbedding(image_id=image.id,embedding=values,model_version=settings.model_version,revoked_at=revoked_at))
+        image.quality={**face.quality,**quality_context,"status":"CROSS_IDENTITY_REVIEW" if needs_review else "ACCEPTED","cross_identity_score":suspicious}
 
 
 def _process_attendance(job_id: str) -> None:
@@ -135,12 +166,16 @@ def _process_attendance(job_id: str) -> None:
             images=list(db.scalars(select(AttendanceSessionImage).where(AttendanceSessionImage.session_id==session.id)))
             candidate_ids=candidate_student_ids(db,session.id)
             gallery={student_id:[] for student_id in candidate_ids}
-            rows=db.execute(select(StudentFaceImage.student_id,StudentFaceEmbedding.embedding).join(StudentFaceEmbedding,StudentFaceEmbedding.image_id==StudentFaceImage.id).where(StudentFaceImage.student_id.in_(candidate_ids),StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))).all()
+            rows=db.execute(select(StudentFaceImage.student_id,StudentFaceEmbedding.embedding).join(StudentFaceEmbedding,StudentFaceEmbedding.image_id==StudentFaceImage.id).where(StudentFaceImage.student_id.in_(candidate_ids),StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None),StudentFaceEmbedding.model_version==settings.model_version)).all()
             for student_id,embedding in rows:gallery[student_id].append(np.asarray(embedding,dtype=np.float32))
+            for student_id in candidate_ids:
+                if len(gallery[student_id])<settings.min_enrolment_images:
+                    gallery[student_id]=[]
             try:
                 engine=get_face_engine();storage=ObjectStorage();best={};ambiguous=set();conflicted=set();successful_images=0
                 db.execute(delete(RecognitionCandidate).where(RecognitionCandidate.detection_id.in_(select(FaceDetection.id).join(AttendanceSessionImage).where(AttendanceSessionImage.session_id==session.id))))
                 db.execute(delete(FaceDetection).where(FaceDetection.image_id.in_(select(AttendanceSessionImage.id).where(AttendanceSessionImage.session_id==session.id))))
+                db.execute(delete(TwinReview).where(TwinReview.session_id==session.id))
                 for image in images:
                     try:
                         faces=engine.analyse(storage.get(image.object_key));successful_images+=1
@@ -152,7 +187,10 @@ def _process_attendance(job_id: str) -> None:
                     image_claims=set()
                     for face in faces:
                         detection=FaceDetection(image_id=image.id,box={"x1":face.box[0],"y1":face.box[1],"x2":face.box[2],"y2":face.box[3]},quality=face.quality,model_version=settings.model_version)
-                        db.add(detection);db.flush();decision=decide_match(face.embedding,gallery)
+                        db.add(detection);db.flush()
+                        if face.embedding is None:
+                            continue
+                        decision=decide_match(face.embedding,gallery)
                         for rank,(student_id,score) in enumerate(decision.candidates,1):db.add(RecognitionCandidate(detection_id=detection.id,student_id=student_id,score=score,rank=rank))
                         if decision.status=="REVIEW":
                             pair=sorted(sid for sid,_ in decision.candidates[:2]);ambiguous.update(pair)
@@ -168,7 +206,7 @@ def _process_attendance(job_id: str) -> None:
                     session.status=SessionStatus.FAILED;session.version+=1
                     return
                 for student_id in candidate_ids:
-                    status,score,reason=resolve_student_status(student_id,bool(gallery[student_id]),best,ambiguous,conflicted,successful_images)
+                    status,score,reason=resolve_student_status(student_id,len(gallery[student_id]),best,ambiguous,conflicted,successful_images)
                     record=db.scalar(select(AttendanceRecord).where(AttendanceRecord.session_id==session.id,AttendanceRecord.student_id==student_id))
                     if record:
                         # PostgreSQL protects the original AI fields from UPDATEs. A deliberate
@@ -181,7 +219,7 @@ def _process_attendance(job_id: str) -> None:
                             amendment_reason=record.amendment_reason,version=record.version+1)
                         db.delete(record);db.flush();db.add(replacement)
                     else:db.add(AttendanceRecord(session_id=session.id,student_id=student_id,ai_status=status,status=status,score=score,review_reason=reason,model_version=settings.model_version))
-                missing_gallery=any(not gallery[student_id] for student_id in candidate_ids)
+                missing_gallery=any(len(gallery[student_id])<settings.min_enrolment_images for student_id in candidate_ids)
                 session.status=SessionStatus.PENDING_REVIEW if ambiguous or conflicted or missing_gallery or successful_images==0 else SessionStatus.READY;session.version+=1
             except ModelUnavailable:
                 # Models are deployment inputs. Never invent matches when they are absent.

@@ -93,11 +93,15 @@ def ready():
 @app.get("/api/v1/models/status", tags=["System"])
 def model_status(_: User = Depends(require_roles(Role.ADMIN))):
     s = get_settings()
-    from pathlib import Path
+    from .recognition import model_files_status
+    weights = model_files_status()
     return {
         "model_version": s.model_version,
         "backend": s.recognition_backend,
-        "detector_configured": Path(s.detector_model_path).is_file() or Path(s.yunet_model_path).is_file(),
-        "embedder_configured": Path(s.embedder_model_path).is_file() or Path(s.sface_model_path).is_file(),
+        "model_pack": s.insightface_model_pack,
+        "detector": "SCRFD-10GF",
+        "embedder": "ArcFace ResNet50@WebFace600K",
+        "detector_configured": weights["detector_configured"],
+        "embedder_configured": weights["embedder_configured"],
         "raw_embeddings_exposed": False,
     }

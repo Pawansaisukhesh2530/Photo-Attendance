@@ -37,6 +37,7 @@ const reasonLabel = (image: FaceImageInfo): string => {
   }
   if (image.reason === 'IMAGE_QUALITY') return 'The face is blurred or the lighting is unsuitable.';
   if (image.reason === 'FACE_TOO_SMALL') return 'Move closer so the face fills more of the image.';
+  if (image.reason === 'UNSUPPORTED_FACE_POSE') return 'Use a front-facing photo with both eyes level and visible.';
   if (image.reason === 'DUPLICATE_TEMPLATE') return 'This angle is too similar to another accepted photo.';
   if (image.reason) return image.reason.replaceAll('_', ' ').toLowerCase();
   if (image.status === 'ACCEPTED') return 'One clear face was checked and saved for recognition.';
@@ -149,6 +150,9 @@ export function FaceEnrolmentCard({ enrolled, studentName, studentId }: FaceEnro
           {acceptedCount} of 3 required photos ready · {activeImages.length} saved in total
         </Text>
       </View>
+      <Text variant="labelMd" color={palette.onSurfaceVariant}>
+        Add 3–5 clear front-facing or slightly angled photos. Avoid full side profiles.
+      </Text>
 
       {activeImages.map((image, index) => {
         const ready = image.status === 'ACCEPTED';

@@ -11,8 +11,8 @@ from .errors import Problem
 from .models import (AttendanceRecord,AttendanceSession,AttendanceSessionClass,AttendanceStatus,AuditEntry, CourseClass, Enrolment, Faculty, FacultyClassAssignment,
                      FacultyStatus, InstitutionSettings, Role, SessionStatus, Student, StudentFaceEmbedding, StudentFaceImage, TimetableSlot, User)
 from .config import get_settings
-from .schemas import (AssignmentRequest, ClassIn, ClassPatch, EnrolmentUpdate,
-                      FacultyIn, FacultyPatch, Page, SettingsOut, SettingsPatch,
+from .schemas import (AssignmentRequest, ClassIn, ClassOut, ClassPatch, EnrolmentUpdate,
+                      FacultyIn, FacultyOut, FacultyPatch, FacultyStatusPatch, Page, SettingsOut, SettingsPatch,
                       StudentIn, StudentOut, StudentPatch)
 from .security import hash_password, require_roles
 
@@ -36,6 +36,7 @@ def class_json(db:Session,item:CourseClass):
     attendance=db.execute(select(AttendanceRecord.status).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id)
                           .join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id)
                           .where(AttendanceSessionClass.class_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED,
+                                 AttendanceRecord.student_id.in_(select(Enrolment.student_id).where(Enrolment.class_id==item.id)),
                                  AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT]))).scalars().all()
     attendance_percentage=round(100*sum(value==AttendanceStatus.PRESENT for value in attendance)/len(attendance),2) if attendance else 0
     slots=list(db.scalars(select(TimetableSlot).where(TimetableSlot.class_id==item.id).order_by(TimetableSlot.day_of_week,TimetableSlot.start_time)))
@@ -45,9 +46,10 @@ def class_json(db:Session,item:CourseClass):
 
 def student_json(db:Session,item:Student,profile=False):
     class_ids=list(db.scalars(select(Enrolment.class_id).where(Enrolment.student_id==item.id)))
-    face_count=db.scalar(select(func.count()).select_from(StudentFaceEmbedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==item.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None))) or 0
-    rows=db.execute(select(AttendanceRecord.status,AttendanceSession.attendance_date,AttendanceSession.id,AttendanceSessionClass.class_id,CourseClass.subject).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id).join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id).join(CourseClass,CourseClass.id==AttendanceSessionClass.class_id).where(AttendanceRecord.student_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED).order_by(AttendanceSession.attendance_date.desc())).all()
-    determined=[r for r in rows if r.status in {AttendanceStatus.PRESENT,AttendanceStatus.ABSENT}];overall=round(100*sum(r.status==AttendanceStatus.PRESENT for r in determined)/len(determined),2) if determined else 0
+    face_count=db.scalar(select(func.count()).select_from(StudentFaceEmbedding).join(StudentFaceImage,StudentFaceImage.id==StudentFaceEmbedding.image_id).where(StudentFaceImage.student_id==item.id,StudentFaceImage.revoked_at.is_(None),StudentFaceEmbedding.revoked_at.is_(None),StudentFaceEmbedding.model_version==get_settings().model_version)) or 0
+    rows=db.execute(select(AttendanceRecord.status,AttendanceSession.attendance_date,AttendanceSession.id,AttendanceSessionClass.class_id,CourseClass.subject).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id).join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id).join(CourseClass,CourseClass.id==AttendanceSessionClass.class_id).where(AttendanceRecord.student_id==item.id,AttendanceSessionClass.class_id.in_(class_ids),AttendanceSession.status==SessionStatus.FINALIZED).order_by(AttendanceSession.attendance_date.desc())).all()
+    determined_by_record=db.scalars(select(AttendanceRecord.status).join(AttendanceSession,AttendanceSession.id==AttendanceRecord.session_id).where(AttendanceRecord.student_id==item.id,AttendanceSession.status==SessionStatus.FINALIZED,AttendanceRecord.status.in_([AttendanceStatus.PRESENT,AttendanceStatus.ABSENT]))).all()
+    overall=round(100*sum(status==AttendanceStatus.PRESENT for status in determined_by_record)/len(determined_by_record),2) if determined_by_record else 0
     result={"id":item.id,"studentId":item.student_id,"rollNumber":item.roll_number,"name":item.name,"avatarUrl":None,"department":item.department,"semester":item.semester,"section":item.section,"overallAttendance":overall,"faceEnrolled":face_count>=get_settings().min_enrolment_images,"twinGroupId":None,"primaryClassId":class_ids[0] if class_ids else "","version":item.version}
     if profile:
         by_class={};recent=[]
@@ -81,7 +83,11 @@ def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: Use
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")
     if payload.designation not in allowed_designations(db):
         raise Problem(422, "Invalid designation", "Choose a role from the institution list.")
-    user = User(email=payload.email.lower(), password_hash=hash_password(payload.password), role=Role.FACULTY)
+    user = User(
+        email=payload.email.lower(),
+        password_hash=hash_password(get_settings().default_account_password),
+        role=Role.FACULTY,
+    )
     db.add(user); _flush(db, "That email address is already assigned to an account.")
     member = Faculty(user_id=user.id, employee_id=payload.employee_id, name=payload.name,
                      department=payload.department, designation=payload.designation)
@@ -126,10 +132,11 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
     item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); _commit(db,"That email address is already assigned to an account."); return faculty_json(db,item)
 
 @router.patch("/faculty/{faculty_id}/status")
-def faculty_status(faculty_id:str,payload:dict,db:Session=Depends(get_db),actor:User=Depends(admin)):
+def faculty_status(faculty_id:str,payload:FacultyStatusPatch,db:Session=Depends(get_db),actor:User=Depends(admin)):
     item=db.get(Faculty,faculty_id)
     if not item:raise Problem(404,"Faculty not found","The faculty member does not exist.")
-    item.status=payload.get("status",item.status);item.version+=1;audit(db,actor,"FACULTY_STATUS_CHANGED",item,after={"status":item.status.value});db.commit();return faculty_json(db,item)
+    ensure_version(item,payload.version)
+    before={"status":item.status.value};item.status=payload.status;item.version+=1;audit(db,actor,"FACULTY_STATUS_CHANGED",item,before=before,after={"status":item.status.value});db.commit();return faculty_json(db,item)
 
 
 @router.post("/students",status_code=201)

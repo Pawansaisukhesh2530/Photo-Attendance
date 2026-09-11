@@ -106,6 +106,7 @@ export {
   type CameraFramingGuideProps,
 } from './domain/CameraFramingGuide';
 export { ClassCard, type ClassCardProps } from './domain/ClassCard';
+export { ClassListCard, type ClassListCardProps } from './domain/ClassListCard';
 export {
   ClassroomPhotoViewer,
   type ClassroomPhotoViewerProps,

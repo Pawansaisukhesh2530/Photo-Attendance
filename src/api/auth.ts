@@ -10,7 +10,10 @@ export const authApi: AuthService = {
   login: (payload) =>
     request<AuthSession>('auth/login', { method: 'POST', body: payload }),
 
-  logout: () => request<void>('auth/logout', { method: 'POST' }),
+  logout: (refreshToken) => request<void>('auth/logout', {
+    method: 'POST',
+    ...(refreshToken ? { body: { refreshToken } } : {}),
+  }),
 
   getCurrentUser: () => request<User>('auth/me'),
 

@@ -1,13 +1,17 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import {
   AppHeader,
+  ClassListCard,
   EmptyState,
   ErrorState,
   Screen,
+  SectionHeader,
   SkeletonCard,
   WeeklyTimetable,
 } from '@/components';
+import { useClasses } from '@/hooks/useClasses';
 import { useMyTimetable } from '@/hooks/useTimetable';
 import { spacing } from '@/theme';
 
@@ -18,9 +22,18 @@ import { spacing } from '@/theme';
  * FREE slots are greyed and non-actionable.
  */
 export default function ClassesScreen() {
-  const { data, isLoading, isRefetching, error, refetch } = useMyTimetable();
+  const router = useRouter();
+  const timetable = useMyTimetable();
+  const classes = useClasses();
+  const isLoading = timetable.isLoading || classes.isLoading;
+  const isRefetching = timetable.isRefetching || classes.isRefetching;
+  const error = timetable.error ?? classes.error;
+  const refetch = () => {
+    void timetable.refetch();
+    void classes.refetch();
+  };
 
-  const header = <AppHeader title="My Classes" subtitle="Weekly timetable" />;
+  const header = <AppHeader title="My Classes" subtitle="Assigned classes and weekly timetable" />;
 
   if (error && !isLoading) {
     return (
@@ -57,15 +70,44 @@ export default function ClassesScreen() {
         refreshing={isRefetching}
         contentContainerStyle={styles.content}
       >
-        {!data || data.length === 0 ? (
+        <SectionHeader title="Assigned Classes" divider />
+        {!classes.data || classes.data.length === 0 ? (
           <EmptyState
-            icon="calendar"
-            title="No timetable"
-            message="No timetable slots have been assigned yet."
+            icon="classes"
+            title="No assigned classes"
+            message="Classes will appear here after an administrator assigns them to you."
           />
         ) : (
-          <WeeklyTimetable slots={data} />
+          <View style={styles.classList}>
+            {classes.data.map((item) => (
+              <ClassListCard
+                key={item.id}
+                item={item}
+                onPress={(selected) => router.push({
+                  pathname: '/(faculty)/class/[classId]',
+                  params: { classId: selected.id },
+                })}
+                onTakeAttendance={(selected) => router.push({
+                  pathname: '/attendance/[classId]/select',
+                  params: { classId: selected.id },
+                })}
+              />
+            ))}
+          </View>
         )}
+
+        <View style={styles.timetableSection}>
+          <SectionHeader title="Weekly Timetable" divider />
+          {!timetable.data || timetable.data.length === 0 ? (
+            <EmptyState
+              icon="calendar"
+              title="No timetable"
+              message="No timetable slots have been assigned yet."
+            />
+          ) : (
+            <WeeklyTimetable slots={timetable.data} />
+          )}
+        </View>
       </Screen>
     </>
   );
@@ -77,5 +119,12 @@ const styles = StyleSheet.create({
   },
   skeletons: {
     gap: spacing.md,
+  },
+  classList: {
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  timetableSection: {
+    marginTop: spacing.xl,
   },
 });

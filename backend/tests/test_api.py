@@ -10,7 +10,8 @@ from app.models import (AttendanceRecord, AttendanceSession, AttendanceSessionCl
 from tests.conftest import auth
 import numpy as np
 from app.recognition import decide_match
-from app.worker import resolve_student_status, select_enrolment_face
+from app.worker import _enrolment_pose_quality, resolve_student_status, select_enrolment_face
+from app.routes_admin import class_json, student_json
 from types import SimpleNamespace
 from PIL import Image
 import io
@@ -20,12 +21,23 @@ from app.storage import ObjectStorage, decode_image_pixels, validate_image
 
 
 def test_successful_no_match_is_absent_but_missing_inputs_stay_unknown():
-    absent=resolve_student_status("S001",True,{},set(),set(),1)
+    absent=resolve_student_status("S001",3,{},set(),set(),1)
     assert absent==(AttendanceStatus.ABSENT,None,"NO_MATCH_OBSERVED")
-    no_gallery=resolve_student_status("S001",False,{},set(),set(),1)
-    assert no_gallery==(AttendanceStatus.UNKNOWN,None,"NO_ACTIVE_FACE_ENROLMENT")
-    no_image=resolve_student_status("S001",True,{},set(),set(),0)
+    beta_present=resolve_student_status("S001",1,{"S001":(0.61,None)},set(),set(),1)
+    assert beta_present==(AttendanceStatus.PRESENT,0.61,None)
+    no_gallery=resolve_student_status("S001",0,{},set(),set(),1)
+    assert no_gallery==(AttendanceStatus.UNKNOWN,None,"INSUFFICIENT_ACTIVE_FACE_ENROLMENT")
+    no_image=resolve_student_status("S001",3,{},set(),set(),0)
     assert no_image==(AttendanceStatus.UNKNOWN,None,"NO_USABLE_SESSION_IMAGE")
+
+
+def test_enrolment_pose_requires_two_level_eye_landmarks():
+    frontal=SimpleNamespace(box=(0,0,200,300),landmarks=np.array([[145,100],[55,102],[0,0],[0,0],[0,0]],dtype=np.float32))
+    profile=SimpleNamespace(box=(0,0,200,300),landmarks=np.zeros((5,2),dtype=np.float32))
+    tilted=SimpleNamespace(box=(0,0,200,300),landmarks=np.array([[140,60],[60,150],[0,0],[0,0],[0,0]],dtype=np.float32))
+    assert _enrolment_pose_quality(frontal)[0] is True
+    assert _enrolment_pose_quality(profile)[0] is False
+    assert _enrolment_pose_quality(tilted)[0] is False
 
 
 def _face(box):
@@ -85,6 +97,13 @@ def test_login_and_rotating_refresh(client, identities):
     assert client.post("/api/v1/auth/refresh", json={"refresh_token": first}).status_code == 401
 
 
+def test_logout_revokes_refresh_token(client, identities):
+    login=client.post("/api/v1/auth/login",json={"identifier":"admin@example.edu","password":"StrongPass123!"})
+    refresh=login.json()["refresh_token"]
+    assert client.post("/api/v1/auth/logout",json={"refreshToken":refresh}).status_code==204
+    assert client.post("/api/v1/auth/refresh",json={"refreshToken":refresh}).status_code==401
+
+
 def test_faculty_cannot_select_unassigned_class(client, identities):
     assigned, unrelated, _, _ = setup_class_scope(identities)
     good = client.post("/api/v1/attendance/sessions", json={"class_ids":[assigned]}, headers=auth(identities["faculty_token"]))
@@ -101,12 +120,43 @@ def test_candidate_pool_never_includes_unselected_class(identities):
         candidates = candidate_student_ids(db, session.id)
         assert selected in candidates
         assert excluded not in candidates
+
+
+def test_multi_class_statistics_do_not_mix_students_between_classes(identities):
+    with SessionLocal.begin() as db:
+        first=CourseClass(code="ISO-A",subject="First",department="CSE",semester=1,section="A",academic_session="2026-27")
+        second=CourseClass(code="ISO-B",subject="Second",department="CSE",semester=1,section="B",academic_session="2026-27")
+        present=Student(student_id="ISO-S1",roll_number="ISO-R1",name="Present",department="CSE",semester=1,section="A")
+        absent=Student(student_id="ISO-S2",roll_number="ISO-R2",name="Absent",department="CSE",semester=1,section="B")
+        db.add_all([first,second,present,absent]);db.flush()
+        db.add_all([Enrolment(student_id=present.id,class_id=first.id),Enrolment(student_id=absent.id,class_id=second.id)])
+        session=AttendanceSession(faculty_id=identities["faculty_id"],attendance_date=date.today(),status=SessionStatus.FINALIZED)
+        db.add(session);db.flush()
+        db.add_all([AttendanceSessionClass(session_id=session.id,class_id=first.id),AttendanceSessionClass(session_id=session.id,class_id=second.id)])
+        db.add_all([
+            AttendanceRecord(session_id=session.id,student_id=present.id,ai_status=AttendanceStatus.PRESENT,status=AttendanceStatus.PRESENT,model_version="test"),
+            AttendanceRecord(session_id=session.id,student_id=absent.id,ai_status=AttendanceStatus.ABSENT,status=AttendanceStatus.ABSENT,model_version="test"),
+        ])
+        db.flush()
+        assert class_json(db,first)["attendance_percentage"]==100
+        assert class_json(db,second)["attendance_percentage"]==0
+        assert student_json(db,present)["overallAttendance"]==100
+
+
+def test_model_unavailable_replaces_prior_ai_result_idempotently(identities):
+    assigned,_,selected,_=setup_class_scope(identities)
+    with SessionLocal.begin() as db:
+        session=AttendanceSession(faculty_id=identities["faculty_id"],attendance_date=date.today(),status=SessionStatus.PROCESSING)
+        db.add(session);db.flush();db.add(AttendanceSessionClass(session_id=session.id,class_id=assigned));db.flush()
+        db.add(AttendanceRecord(session_id=session.id,student_id=selected,ai_status=AttendanceStatus.PRESENT,status=AttendanceStatus.PRESENT,score=.9,model_version="old"));db.flush()
         build_safe_unknown_records(db, session)
         build_safe_unknown_records(db, session)
         records = list(db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session.id)))
         assert len(records) == 1
         assert records[0].student_id == selected
+        assert records[0].ai_status == AttendanceStatus.UNKNOWN
         assert records[0].status == AttendanceStatus.UNKNOWN
+        assert records[0].review_reason == "MODEL_UNAVAILABLE"
 
 
 def test_finalize_requires_acknowledgement_and_amendment_reason(client, identities):
@@ -265,6 +315,27 @@ def test_timetable_crud_filters_and_faculty_scope(client, identities):
         headers=headers,
     )
     assert deleted.status_code == 204
+def test_new_faculty_uses_configured_default_password(client, identities):
+    headers = auth(identities["admin_token"])
+    created = client.post(
+        "/api/v1/faculty",
+        headers=headers,
+        json={
+            "email": "new.faculty@christuniversity.in",
+            "employee_id": "FAC-DEFAULT",
+            "name": "Default Password Faculty",
+            "department": "CSE",
+            "designation": "Assistant Professor",
+        },
+    )
+    assert created.status_code == 201, created.text
+    for identifier in ("new.faculty@christuniversity.in", "FAC-DEFAULT"):
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"identifier": identifier, "password": "LocalTest123!"},
+        )
+        assert login.status_code == 200, login.text
+        assert login.json()["user"]["role"] == "FACULTY"
 
 
 def test_matching_uses_multiple_templates_and_ambiguity(monkeypatch):
@@ -303,6 +374,20 @@ def test_faculty_student_directory_is_assignment_scoped(client, identities):
 
 def _png(color=(30,120,90)):
     image=Image.new("RGB",(160,160),color);target=io.BytesIO();image.save(target,"PNG");return target.getvalue()
+
+
+def test_face_enrolment_reserves_at_most_five_pending_or_accepted_slots(client, identities):
+    _,_,student_id,_=setup_class_scope(identities)
+    headers=auth(identities["admin_token"])
+    files=[("files",(f"face-{index}.png",_png((20+index,100,140)),"image/png")) for index in range(5)]
+    accepted=client.post(f"/api/v1/students/{student_id}/face-images",headers=headers,files=files)
+    assert accepted.status_code==201
+    rejected=client.post(
+        f"/api/v1/students/{student_id}/face-images",
+        headers=headers,
+        files=[("files",("face-6.png",_png((40,110,150)),"image/png"))],
+    )
+    assert rejected.status_code==409
 
 
 def _rotated_phone_jpeg():

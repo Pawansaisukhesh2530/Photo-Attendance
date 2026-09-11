@@ -57,6 +57,17 @@ async def enrol_faces(student_id: str, files: list[UploadFile] = File(...), db: 
             )
         )
     }
+    reserved_count=sum(
+        1 for row in db.scalars(select(StudentFaceImage).where(
+            StudentFaceImage.student_id==student_id,
+            StudentFaceImage.revoked_at.is_(None),
+        )).all()
+        if row.quality.get("status") not in {"REJECTED","MODEL_ERROR"}
+    )
+    new_count=sum(1 for image in validated if image.checksum not in existing)
+    restored_count=sum(1 for image in validated if image.checksum in existing and existing[image.checksum].revoked_at is not None)
+    if reserved_count+new_count+restored_count>settings.max_enrolment_images:
+        raise Problem(409,"Face image limit reached",f"A student can have at most {settings.max_enrolment_images} accepted or pending enrolment images. Delete or replace an image first.")
     rows=[]
     for image in validated:
         previous = existing.get(image.checksum)
@@ -368,7 +379,7 @@ def annotated_session_image(session_id:str,image_id:str,token:str=Query(...),db:
     detections=db.scalars(select(FaceDetection).where(FaceDetection.image_id==image_id)).all()
     detection_ids=[d.id for d in detections]
     candidate_rows=db.execute(
-        select(RecognitionCandidate.detection_id,Student.student_id,RecognitionCandidate.score,RecognitionCandidate.rank)
+        select(RecognitionCandidate.detection_id,RecognitionCandidate.student_id.label("student_pk"),Student.student_id.label("student_code"),RecognitionCandidate.score,RecognitionCandidate.rank)
         .join(Student,Student.id==RecognitionCandidate.student_id)
         .where(RecognitionCandidate.detection_id.in_(detection_ids))
         .order_by(RecognitionCandidate.detection_id,RecognitionCandidate.rank)
@@ -376,13 +387,20 @@ def annotated_session_image(session_id:str,image_id:str,token:str=Query(...),db:
     candidates_by_detection={}
     for candidate in candidate_rows:candidates_by_detection.setdefault(candidate.detection_id,[]).append(candidate)
     settings=get_settings();font_size=max(18,image.width//130)
+    accepted_claims={}
+    for detection in detections:
+        candidates=candidates_by_detection.get(detection.id,[])
+        if candidates and candidates[0].score>=settings.match_threshold and (len(candidates)==1 or candidates[0].score-candidates[1].score>=settings.ambiguity_margin):
+            accepted_claims[detection.id]=candidates[0].student_pk
+    duplicate_claims={student_id for student_id in accepted_claims.values() if list(accepted_claims.values()).count(student_id)>1}
     try:font=ImageFont.truetype("DejaVuSans.ttf",font_size)
     except OSError:font=ImageFont.load_default()
     for detection in detections:
         candidates=candidates_by_detection.get(detection.id,[]);label="Unknown";colour="#f59e0b"
         if candidates and candidates[0].score>=settings.match_threshold:
             if len(candidates)==1 or candidates[0].score-candidates[1].score>=settings.ambiguity_margin:
-                label=candidates[0].student_id;colour="#14b8a6"
+                if candidates[0].student_pk in duplicate_claims:label="Review";colour="#ef4444"
+                else:label=candidates[0].student_code;colour="#14b8a6"
             else:label="Review";colour="#ef4444"
         b=detection.box;box=(b["x1"],b["y1"],b["x2"],b["y2"]);line_width=max(2,image.width//700)
         draw.rectangle(box,outline=colour,width=line_width)
@@ -442,13 +460,20 @@ def get_session(session_id:str,db:Session=Depends(get_db),actor:User=Depends(cur
             else:match_status="REVIEW"
         normalized_box={"x":b["x1"]/source.width,"y":b["y1"]/source.height,"width":(b["x2"]-b["x1"])/source.width,"height":(b["y2"]-b["y1"])/source.height} if source else None
         evidence.append({"detection_id":detection.id,"image_id":detection.image_id,"box":detection.box,"normalized_box":normalized_box,"quality":detection.quality,"model_version":detection.model_version,"match_status":match_status,"matched_student_id":matched_student_id,"candidates":[{"student_id":c.student_id,"score":c.score,"rank":c.rank} for c in candidates]})
+    claim_counts={}
+    for item in evidence:
+        if item["match_status"]=="MATCHED":
+            key=(item["image_id"],item["matched_student_id"]);claim_counts[key]=claim_counts.get(key,0)+1
+    for item in evidence:
+        if item["match_status"]=="MATCHED" and claim_counts[(item["image_id"],item["matched_student_id"])]>1:
+            item["match_status"]="REVIEW";item["matched_student_id"]=None
     enriched=[]
     for record in records:
         student=db.get(Student,record.student_id)
         student_class=db.scalar(select(Enrolment.class_id).where(Enrolment.student_id==record.student_id,Enrolment.class_id.in_(class_ids)))
         face_box=None
         for item in evidence:
-            if item["candidates"] and item["candidates"][0]["student_id"]==record.student_id and item["candidates"][0]["score"]>=get_settings().match_threshold:
+            if item["match_status"]=="MATCHED" and item["matched_student_id"]==record.student_id:
                 source=next((x for x in images if x.id==item["image_id"]),None);b=item["box"]
                 if source:face_box={"x":b["x1"]/source.width,"y":b["y1"]/source.height,"width":(b["x2"]-b["x1"])/source.width,"height":(b["y2"]-b["y1"])/source.height}
                 break

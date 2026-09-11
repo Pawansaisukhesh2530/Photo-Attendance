@@ -17,7 +17,7 @@ flowchart LR
     QUEUE --> WORKER[Recognition worker]
     WORKER --> DB
     WORKER --> STORE
-    WORKER --> MODELS[YuNet/SFace locally<br/>SCRFD/ArcFace adapter supported]
+    WORKER --> MODELS[InsightFace SCRFD-10GF detection<br/>ArcFace embeddings]
 ```
 
 ## Current local addresses
@@ -172,7 +172,7 @@ Attendance interpretation in the current beta is:
 - If processing cannot make a reliable decision because required evidence is unavailable, the enrolled student can remain `UNKNOWN`.
 - A detected person who has no matching enrolled identity is labelled `Unknown` on the annotated image. That person is not inserted into the student review table because no database student record exists to review.
 
-The score is model similarity, not a probability. The configured local match threshold is `0.50`; it must be calibrated with representative institutional images before production.
+The score is model similarity, not a probability. The configured beta threshold is `0.50`; one accepted front-facing enrolment image enables matching, while three to five are recommended. Eligible classroom faces are aligned and cropped automatically before ArcFace embedding. Both the threshold and quality gates must be calibrated with representative institutional images before production.
 
 ## Results, images, and downloads
 
@@ -220,5 +220,5 @@ Processing uses an idempotency key based on the session, uploaded image checksum
 
 ## Deployment differences
 
-Local beta mode uses PostgreSQL with local private storage, a local worker, and OpenCV YuNet/SFace models. The deployment compose file provides PostgreSQL 17 with pgvector, Redis, MinIO, FastAPI, and a Celery GPU worker. Deployment must use HTTPS, strong secrets, licensed model weights, private encrypted storage, database backups, and a calibrated recognition threshold.
+Local beta mode uses PostgreSQL with local private storage, a local worker, and InsightFace `buffalo_l` for SCRFD detection and ArcFace embeddings. The deployment compose file provides PostgreSQL 17 with pgvector, Redis, MinIO, FastAPI, and a Celery worker. Deployment must use HTTPS, strong secrets, appropriately licensed model weights, private encrypted storage, database backups, and a calibrated recognition threshold.
 
