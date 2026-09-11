@@ -288,6 +288,10 @@ class TimetableSlot(Versioned, Base):
                         name="ck_timetable_class_requires_class_id"),
         CheckConstraint("slot_type != 'FREE' OR class_id IS NULL",
                         name="ck_timetable_free_must_be_null_class"),
+        CheckConstraint("day_of_week BETWEEN 1 AND 5",
+                        name="ck_timetable_valid_day"),
+        CheckConstraint("start_time < end_time",
+                        name="ck_timetable_time_order"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     faculty_id: Mapped[str] = mapped_column(ForeignKey("faculty.id", ondelete="CASCADE"), index=True)

@@ -1,7 +1,7 @@
 from datetime import date, time
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,16 +10,12 @@ from .domain import audit, ensure_version, faculty_for_user, page
 from .errors import Problem
 from .models import (CourseClass, Faculty, FacultyClassAssignment, Role, SlotType,
                      TimetableSlot, User)
-from .schemas import (Page, TimetableSlotIn, TimetableSlotOut, TimetableSlotPatch)
-from .security import current_user, require_roles
+from .schemas import TimetableSlotIn, TimetableSlotPatch
+from .security import require_roles
 
 router = APIRouter(tags=["Timetable"])
 
 DAY_NAMES = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday", 5: "Friday"}
-
-
-def _normalize_variant(v: str) -> str:
-    return v.strip().title()
 
 
 def _format_time(t: time) -> str:
@@ -105,7 +101,7 @@ def create_slot(payload: TimetableSlotIn, db: Session = Depends(get_db),
 @router.get("/admin/timetable")
 def list_admin_slots(faculty_id: str | None = Query(None, alias="facultyId"),
                      day_of_week: int | None = Query(None, alias="dayOfWeek"),
-                     slot_type: SlotType | None = None,
+                     slot_type: SlotType | None = Query(None, alias="slotType"),
                      page_number: int = Query(1, alias="page"),
                      page_size: int = 50,
                      db: Session = Depends(get_db),
@@ -156,11 +152,13 @@ def patch_slot(slot_id: str, payload: TimetableSlotPatch,
     before = {"day_of_week": slot.day_of_week, "start_time": str(slot.start_time),
               "end_time": str(slot.end_time), "room": slot.room}
 
-    changes = payload.model_dump(exclude={"version"}, exclude_none=True)
+    # Keep explicit nulls so an edit can clear class_id when changing CLASS to FREE.
+    # Omitted fields remain untouched.
+    changes = payload.model_dump(exclude={"version"}, exclude_unset=True)
     new_type = changes.get("slot_type", slot.slot_type)
     new_class_id = changes.get("class_id", slot.class_id)
 
-    if new_type == SlotType.CLASS and new_class_id is None and slot.class_id is None:
+    if new_type == SlotType.CLASS and new_class_id is None:
         raise Problem(422, "class_id required",
                       "A CLASS slot must have a class_id.")
     if new_type == SlotType.FREE and new_class_id is not None:
@@ -176,6 +174,11 @@ def patch_slot(slot_id: str, payload: TimetableSlotPatch,
         )):
             raise Problem(409, "Unassigned class",
                           "This faculty member is not assigned to teach this class.")
+
+    effective_start = changes.get("start_time", slot.start_time)
+    effective_end = changes.get("end_time", slot.end_time)
+    if effective_start >= effective_end:
+        raise Problem(422, "Invalid time range", "End time must be after start time.")
 
     for k, v in changes.items():
         setattr(slot, k, v)

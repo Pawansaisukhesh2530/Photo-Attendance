@@ -43,13 +43,6 @@ function formatMeridian(hhmm: string): string {
   return `${display}:${m ?? '00'} ${meridiem}`;
 }
 
-function nextHour(hhmm: string): string {
-  const [h, m] = hhmm.split(':');
-  const hour = Number(h ?? 0);
-  if (hour >= 20) return '20:00';
-  return `${String(hour + 1).padStart(2, '0')}:${m ?? '00'}`;
-}
-
 /**
  * Create or edit a timetable slot.
  *
@@ -135,7 +128,7 @@ export default function AdminTimetableSlotFormScreen() {
 
   const dayOptions = useMemo(
     () =>
-      (Object.keys(DAY_LABELS) as unknown as number[]).map((d) => ({
+      Object.keys(DAY_LABELS).map(Number).map((d) => ({
         id: String(d),
         label: DAY_LABELS[d] ?? '',
         selected: d === dayOfWeek,
@@ -154,7 +147,6 @@ export default function AdminTimetableSlotFormScreen() {
   );
 
   const endTimeOptions = useMemo(() => {
-    const minEnd = startTime ? nextHour(startTime) : '08:00';
     return HALF_HOURS
       .filter((t) => t > (startTime ?? '07:00'))
       .map((t) => ({

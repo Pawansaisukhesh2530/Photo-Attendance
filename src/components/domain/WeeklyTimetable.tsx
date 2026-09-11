@@ -5,7 +5,7 @@ import { AnimatedPressable } from '@/components/primitives/Pressable';
 import { Text } from '@/components/primitives/Text';
 import { palette, spacing } from '@/theme';
 import type { TimetableSlot } from '@/types';
-import { DAY_LABELS, DAY_SHORT } from '@/types';
+import { DAY_SHORT } from '@/types';
 
 const DAY_ORDER = [1, 2, 3, 4, 5] as const;
 

@@ -19,7 +19,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useFacultyDashboard } from '@/hooks/useFacultyDashboard';
 import { palette, spacing } from '@/theme';
-import type { AttendanceSessionSummary, TodayClass, TimetableSlot } from '@/types';
+import type { AttendanceSessionSummary, TodayClass } from '@/types';
 import { formatLongDate, formatScheduleTime, greetingForNow } from '@/utils/datetime';
 
 /**

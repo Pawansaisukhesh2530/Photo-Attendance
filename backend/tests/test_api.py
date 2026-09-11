@@ -165,6 +165,108 @@ def test_faculty_email_requires_institution_domain_and_can_be_corrected(client, 
     assert login.status_code==200
 
 
+def test_timetable_crud_filters_and_faculty_scope(client, identities):
+    assigned, _, _, _ = setup_class_scope(identities)
+    headers = auth(identities["admin_token"])
+
+    class_slot = client.post(
+        "/api/v1/admin/timetable/slots",
+        json={
+            "faculty_id": identities["faculty_id"],
+            "class_id": assigned,
+            "slot_type": "CLASS",
+            "day_of_week": 1,
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "room": "Room 101",
+        },
+        headers=headers,
+    )
+    assert class_slot.status_code == 201
+
+    free_slot = client.post(
+        "/api/v1/admin/timetable/slots",
+        json={
+            "faculty_id": identities["faculty_id"],
+            "class_id": None,
+            "slot_type": "FREE",
+            "day_of_week": 1,
+            "start_time": "11:00",
+            "end_time": "12:00",
+            "break_label": "Lunch",
+        },
+        headers=headers,
+    )
+    assert free_slot.status_code == 201
+
+    overlap = client.post(
+        "/api/v1/admin/timetable/slots",
+        json={
+            "faculty_id": identities["faculty_id"],
+            "class_id": assigned,
+            "slot_type": "CLASS",
+            "day_of_week": 1,
+            "start_time": "09:30",
+            "end_time": "10:30",
+        },
+        headers=headers,
+    )
+    assert overlap.status_code == 409
+
+    filtered = client.get(
+        "/api/v1/admin/timetable",
+        params={"slotType": "FREE"},
+        headers=headers,
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 1
+    assert filtered.json()["items"][0]["slot_type"] == "FREE"
+
+    mine = client.get(
+        "/api/v1/timetable/mine",
+        headers=auth(identities["faculty_token"]),
+    )
+    assert mine.status_code == 200
+    assert len(mine.json()["items"]) == 2
+    other = client.get(
+        "/api/v1/timetable/mine",
+        headers=auth(identities["other_token"]),
+    )
+    assert other.status_code == 200
+    assert other.json()["items"] == []
+
+    changed = client.patch(
+        f"/api/v1/admin/timetable/slots/{class_slot.json()['id']}",
+        json={
+            "slot_type": "FREE",
+            "class_id": None,
+            "break_label": "Office hour",
+            "version": class_slot.json()["version"],
+        },
+        headers=headers,
+    )
+    assert changed.status_code == 200
+    assert changed.json()["slot_type"] == "FREE"
+    assert changed.json()["class_id"] is None
+
+    invalid_range = client.patch(
+        f"/api/v1/admin/timetable/slots/{changed.json()['id']}",
+        json={
+            "start_time": "13:00",
+            "end_time": "12:30",
+            "version": changed.json()["version"],
+        },
+        headers=headers,
+    )
+    assert invalid_range.status_code == 422
+
+    deleted = client.delete(
+        f"/api/v1/admin/timetable/slots/{free_slot.json()['id']}",
+        headers=headers,
+    )
+    assert deleted.status_code == 204
+
+
 def test_matching_uses_multiple_templates_and_ambiguity(monkeypatch):
     from app.config import get_settings
     settings=get_settings();monkeypatch.setattr(settings,"match_threshold",0.45);monkeypatch.setattr(settings,"ambiguity_margin",0.05)
