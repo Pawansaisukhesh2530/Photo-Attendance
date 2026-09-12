@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { isApiError } from '@/api/client';
@@ -18,6 +18,7 @@ import {
   Text,
   useToast,
 } from '@/components';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { useInstitutionSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { palette, radius, spacing, useResponsive } from '@/theme';
 import { formatShortDate } from '@/utils/datetime';
@@ -40,13 +41,18 @@ export default function AdminSettingsScreen() {
   const toast = useToast();
 
   const { data: settings, isLoading, isRefetching, error, refetch } = useInstitutionSettings();
+  const academic = useAcademicTree();
   const update = useUpdateSettings();
 
   const [thresholdText, setThresholdText] = useState('');
   const [institutionName, setInstitutionName] = useState('');
   const [institutionCode, setInstitutionCode] = useState('');
-  const [departmentsText, setDepartmentsText] = useState('');
-  const [rolesText, setRolesText] = useState('');
+  const [academicSession, setAcademicSession] = useState('');
+  const [semesterCount, setSemesterCount] = useState('');
+  const [roles, setRoles] = useState<string[]>([]);
+  const [newRole, setNewRole] = useState('');
+  const [classTypes, setClassTypes] = useState<string[]>([]);
+  const [newClassType, setNewClassType] = useState('');
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -55,8 +61,10 @@ export default function AdminSettingsScreen() {
     setThresholdText(String(settings.attendanceThreshold));
     setInstitutionName(settings.institutionName);
     setInstitutionCode(settings.institutionCode);
-    setDepartmentsText(settings.departments.join(', '));
-    setRolesText(settings.facultyRoles.join(', '));
+    setAcademicSession(settings.academicSession);
+    setSemesterCount(String(settings.semesterCount));
+    setRoles(settings.facultyRoles);
+    setClassTypes(settings.classTypes);
     setSeeded(true);
   }
 
@@ -67,29 +75,43 @@ export default function AdminSettingsScreen() {
     parsedThreshold !== settings.attendanceThreshold;
   const nameChanged = settings !== undefined && institutionName.trim() !== settings.institutionName;
   const codeChanged = settings !== undefined && institutionCode.trim().toUpperCase() !== settings.institutionCode;
-  const departments = useMemo(() => departmentsText.split(',').map((value) => value.trim()).filter(Boolean), [departmentsText]);
-  const departmentsChanged = settings !== undefined && departments.join('|') !== settings.departments.join('|');
-  const roles = useMemo(() => rolesText.split(',').map((value) => value.trim()).filter(Boolean), [rolesText]);
   const rolesChanged = settings !== undefined && roles.join('|') !== settings.facultyRoles.join('|');
-  const dirty = thresholdChanged || nameChanged || codeChanged || departmentsChanged || rolesChanged;
+  const classTypesChanged = settings !== undefined && classTypes.join('|') !== settings.classTypes.join('|');
+  const sessionChanged = settings !== undefined && academicSession.trim() !== settings.academicSession;
+  const parsedSemesterCount = Number(semesterCount);
+  const semesterCountChanged = settings !== undefined && semesterCount.trim() !== String(settings.semesterCount);
+  const dirty = thresholdChanged || nameChanged || codeChanged || rolesChanged || classTypesChanged || sessionChanged || semesterCountChanged;
 
   const save = useCallback(async () => {
     setConfirming(false);
     setFieldErrors({});
+
+    if (sessionChanged && academicSession.trim().length < 4) {
+      setFieldErrors({ academicSession: 'Enter a valid academic session.' });
+      return;
+    }
+    if (semesterCountChanged && (!Number.isInteger(parsedSemesterCount) || parsedSemesterCount < 1 || parsedSemesterCount > 20)) {
+      setFieldErrors({ semesterCount: 'Enter a whole number from 1 to 20.' });
+      return;
+    }
 
     try {
       const saved = await update.mutateAsync({
         ...(thresholdChanged ? { attendanceThreshold: parsedThreshold } : {}),
         ...(nameChanged ? { institutionName: institutionName.trim() } : {}),
         ...(codeChanged ? { institutionCode: institutionCode.trim().toUpperCase() } : {}),
-        ...(departmentsChanged ? { departments } : {}),
         ...(rolesChanged ? { facultyRoles: roles } : {}),
+        ...(classTypesChanged ? { classTypes } : {}),
+        ...(sessionChanged ? { academicSession: academicSession.trim() } : {}),
+        ...(semesterCountChanged ? { semesterCount: parsedSemesterCount } : {}),
       });
       setThresholdText(String(saved.attendanceThreshold));
       setInstitutionName(saved.institutionName);
       setInstitutionCode(saved.institutionCode);
-      setDepartmentsText(saved.departments.join(', '));
-      setRolesText(saved.facultyRoles.join(', '));
+      setRoles(saved.facultyRoles);
+      setClassTypes(saved.classTypes);
+      setAcademicSession(saved.academicSession);
+      setSemesterCount(String(saved.semesterCount));
       toast.show({ message: 'Settings saved', tone: 'success' });
     } catch (e) {
       if (isApiError(e) && e.kind === 'VALIDATION' && e.fieldErrors) {
@@ -101,7 +123,7 @@ export default function AdminSettingsScreen() {
         tone: 'error',
       });
     }
-  }, [thresholdChanged, nameChanged, codeChanged, departmentsChanged, departments, rolesChanged, roles, parsedThreshold, institutionName, institutionCode, update, toast]);
+  }, [thresholdChanged, nameChanged, codeChanged, rolesChanged, classTypesChanged, sessionChanged, semesterCountChanged, roles, classTypes, academicSession, parsedSemesterCount, parsedThreshold, institutionName, institutionCode, update, toast]);
 
   const scaffold = {
     active: 'settings',
@@ -223,28 +245,23 @@ export default function AdminSettingsScreen() {
               {...(fieldErrors.institutionCode ? { error: fieldErrors.institutionCode } : {})}
             />
             <View style={styles.gap} />
-            <Input
-              label="Departments"
-              value={departmentsText}
-              onChangeText={setDepartmentsText}
-              placeholder="CSE, ECE, IT"
-              helperText="Enter comma-separated department names. These values drive all department dropdowns."
-            />
+            <Text variant="labelMd" color={palette.onSurface}>Faculty designations</Text>
+            <View style={styles.optionList}>{roles.map((role)=><View key={role} style={styles.optionRow}><Text color={palette.onSurface} style={styles.flex}>{role}</Text><Button label="Remove" size="sm" variant="ghost" disabled={roles.length===1} onPress={()=>setRoles((current)=>current.filter((value)=>value!==role))}/></View>)}</View>
+            <View style={styles.addRow}><View style={styles.flex}><Input label="New designation" value={newRole} onChangeText={setNewRole} placeholder="Assistant Professor" /></View><Button label="Add" icon="add" variant="secondary" disabled={!newRole.trim()||roles.some((role)=>role.toLowerCase()===newRole.trim().toLowerCase())} onPress={()=>{setRoles((current)=>[...current,newRole.trim()]);setNewRole('');}} /></View>
+            <View style={styles.gap} />
+            <Text variant="labelMd" color={palette.onSurface}>Class types</Text>
+            <View style={styles.optionList}>{classTypes.map((classType)=><View key={classType} style={styles.optionRow}><Text color={palette.onSurface} style={styles.flex}>{classType}</Text><Button label="Remove" size="sm" variant="ghost" disabled={classTypes.length===1} onPress={()=>setClassTypes((current)=>current.filter((value)=>value!==classType))}/></View>)}</View>
+            <View style={styles.addRow}><View style={styles.flex}><Input label="New class type" value={newClassType} onChangeText={setNewClassType} placeholder="Seminar" /></View><Button label="Add" icon="add" variant="secondary" disabled={!newClassType.trim()||classTypes.some((value)=>value.toLowerCase()===newClassType.trim().toLowerCase())} onPress={()=>{setClassTypes((current)=>[...current,newClassType.trim()]);setNewClassType('');}} /></View>
             <View style={styles.gap} />
             <Input
-              label="Faculty roles / designations"
-              value={rolesText}
-              onChangeText={setRolesText}
-              placeholder="Professor, Assistant Professor, Lecturer"
-              helperText="Enter comma-separated roles. Only these options appear when adding faculty."
+              label="Academic session"
+              value={academicSession}
+              onChangeText={setAcademicSession}
+              icon="calendar"
+              placeholder="2026-27"
+              helperText="Used as the default session when creating a class."
+              {...(fieldErrors.academicSession ? { error: fieldErrors.academicSession } : {})}
             />
-            <View style={styles.gap} />
-            <View style={styles.readOnlyRow}>
-              <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.flex}>
-                Academic session
-              </Text>
-              <Badge label={settings.academicSession} icon="calendar" />
-            </View>
           </Card>
         </View>
 
@@ -252,31 +269,44 @@ export default function AdminSettingsScreen() {
         <View style={styles.block}>
           <SectionHeader title="Academic configuration" divider />
           <Card>
-            <View style={styles.readOnlyRow}>
-              <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.flex}>
-                Semesters
-              </Text>
-              <Text variant="bodyLg" color={palette.onSurface}>
-                {settings.semesterCount}
-              </Text>
-            </View>
+            <Input
+              label="Number of semesters"
+              value={semesterCount}
+              onChangeText={setSemesterCount}
+              keyboardType="number-pad"
+              helperText="Between 1 and 20. Controls semester choices in academic forms."
+              {...(fieldErrors.semesterCount ? { error: fieldErrors.semesterCount } : {})}
+            />
 
             <View style={styles.deptBlock}>
               <Text variant="bodyMd" color={palette.onSurfaceVariant}>
                 Departments
               </Text>
               <View style={styles.deptTags}>
-                {settings.departments.map((d) => (
-                  <Badge key={d} label={d} icon="institution" />
-                ))}
+                {(academic.data?.departments ?? [])
+                  .filter((department) => department.active)
+                  .map((department) => (
+                    <Badge
+                      key={department.id}
+                      label={`${department.code} · ${department.name}`}
+                      icon="institution"
+                    />
+                  ))}
               </View>
             </View>
 
             <Text variant="labelMd" color={palette.outline} style={styles.note}>
-              Departments and semester count are read-only here. Both are referenced by existing
-              classes, students and reports, so changing them needs a migration the backend has to
-              own rather than an in-place edit.
+              Schools, departments, programmes, batches and sections are managed as linked records.
+              Archived records remain available for historical data but disappear from new-record
+              dropdowns.
             </Text>
+            <View style={styles.gap} />
+            <Button
+              label="Manage academic structure"
+              icon="institution"
+              variant="secondary"
+              onPress={() => router.push('/(admin)/academic-structure')}
+            />
           </Card>
         </View>
 
@@ -337,8 +367,8 @@ export default function AdminSettingsScreen() {
               setThresholdText(String(settings.attendanceThreshold));
               setInstitutionName(settings.institutionName);
               setInstitutionCode(settings.institutionCode);
-              setDepartmentsText(settings.departments.join(', '));
-              setRolesText(settings.facultyRoles.join(', '));
+              setRoles(settings.facultyRoles);
+              setClassTypes(settings.classTypes);
               setFieldErrors({});
             }}
             disabled={!dirty || update.isPending}
@@ -430,6 +460,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  optionList: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  optionRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: palette.surfaceContainerHigh,
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   note: {
     marginTop: spacing.sm,

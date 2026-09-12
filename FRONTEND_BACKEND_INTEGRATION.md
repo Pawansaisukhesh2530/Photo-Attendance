@@ -96,7 +96,7 @@ Access tokens are short lived. When a request receives `401`, the client attempt
 | Manual correction | `/attendance/records/{id}` |
 | Twin review | Session twin-review list and resolution endpoints |
 | Finalization and retry | Session `/finalize` and `/retry` endpoints |
-| Reports | `/reports/attendance`, `/reports/attendance/students` |
+| Reports | `/reports/attendance`, `/reports/attendance/students`, `/reports/attendance/export` |
 | Downloads | `/attendance/sessions/{id}/export?format=csv|xlsx|pdf|json` |
 | Institution settings | `/settings/institution` |
 | Audit history | `/audit` |
@@ -106,7 +106,7 @@ Access tokens are short lived. When a request receives `401`, the client attempt
 The Admin should create data in this order because later records reference earlier ones:
 
 1. Log in with the seeded administrator account.
-2. Add Faculty employees. The current beta frontend creates each account with temporary password `ChangeMe123!`.
+2. Add Faculty employees. The backend creates each account with `DEFAULT_ACCOUNT_PASSWORD`; the local development default is `LocalTest123!` and should be replaced outside local development.
 3. Add Students with unique student ID and roll number.
 4. Create Classes.
 5. Assign one Faculty employee to each class.

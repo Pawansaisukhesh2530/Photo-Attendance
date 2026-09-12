@@ -35,6 +35,7 @@ export interface InstitutionSettings {
   departments: string[];
   /** Faculty roles/designations available in the faculty form. */
   facultyRoles: string[];
+  classTypes: string[];
   /** Highest semester number in use. */
   semesterCount: number;
 
@@ -66,5 +67,6 @@ export interface UpdateSettingsRequest {
   academicSession?: string;
   departments?: string[];
   facultyRoles?: string[];
+  classTypes?: string[];
   semesterCount?: number;
 }

@@ -50,9 +50,10 @@ function formatMeridian(hhmm: string): string {
  * Uses the classes/new.tsx convention.
  */
 export default function AdminTimetableSlotFormScreen() {
-  const { facultyId, slotId } = useLocalSearchParams<{
+  const { facultyId, slotId, classId: initialClassId } = useLocalSearchParams<{
     facultyId: string;
     slotId?: string;
+    classId?: string;
   }>();
   const isEdit = Boolean(slotId);
   const toast = useToast();
@@ -73,7 +74,7 @@ export default function AdminTimetableSlotFormScreen() {
   const [seeded, setSeeded] = useState(false);
   const [slotType, setSlotType] = useState<SlotType>('CLASS');
   const [dayOfWeek, setDayOfWeek] = useState<number | null>(null);
-  const [classId, setClassId] = useState<string | null>(null);
+  const [classId, setClassId] = useState<string | null>(initialClassId ?? null);
   const [breakLabel, setBreakLabel] = useState('');
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);

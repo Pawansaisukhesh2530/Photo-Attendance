@@ -48,6 +48,7 @@ export { SettingsRow, type SettingsRowProps } from './layout/SettingsRow';
 // Admin (Phase 9)
 export {
   ADMIN_DESTINATIONS,
+  ADMIN_GROUP_ORDER,
   ADMIN_SECONDARY,
   type AdminDestination,
 } from './admin/adminNav';
@@ -83,6 +84,9 @@ export {
   type SelectionOption,
   type SelectionSheetProps,
 } from './admin/SelectionSheet';
+export { AcademicHierarchyFields, type HierarchyLevel, type HierarchySelection } from './admin/AcademicHierarchyFields';
+export { StudentMappingPanel } from './admin/StudentMappingPanel';
+export { CurriculumPanel } from './admin/CurriculumPanel';
 
 // Domain
 export {

@@ -64,6 +64,8 @@ export const timetableApi = {
     const res = await request<RawPage>('admin/timetable', {
       query: {
         facultyId: query?.facultyId,
+        classId: query?.classId,
+        sectionId: query?.sectionId,
         dayOfWeek: query?.dayOfWeek,
         slotType: query?.slotType,
         page: query?.page,

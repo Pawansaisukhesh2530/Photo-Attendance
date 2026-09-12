@@ -11,6 +11,7 @@ import { Text } from '@/components/primitives/Text';
 import { Screen } from '@/components/layout/Screen';
 import { SectionHeader } from '@/components/layout/SectionHeader';
 import { ATTENDANCE_THRESHOLD } from '@/constants/config';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { useClasses } from '@/hooks/useClasses';
 import { useStudent } from '@/hooks/useStudents';
 import { palette, radius, spacing, statusColors } from '@/theme';
@@ -106,6 +107,19 @@ export function StudentProfileView({
 }: StudentProfileViewProps) {
   const { data: student, isLoading, isRefetching, error, refetch } = useStudent(studentId);
   const { data: classes } = useClasses();
+  const academic = useAcademicTree();
+
+  const academicFacts = useMemo(() => {
+    if (!student || !academic.data) return [];
+    const lookups = [
+      ['School', academic.data.schools, student.schoolId],
+      ['Department', academic.data.departments, student.departmentId],
+      ['Programme', academic.data.programs, student.programId],
+      ['Batch', academic.data.batches, student.batchId],
+      ['Section', academic.data.sections, student.sectionId],
+    ] as const;
+    return lookups.map(([label, rows, id]) => ({ label, value:rows.find((row) => row.id === id)?.name ?? 'Not confirmed' }));
+  }, [academic.data, student]);
 
   /** Resolves class ids to display data. Falls back to the raw id if a class is not in scope. */
   const classLookup = useMemo(() => {
@@ -196,10 +210,11 @@ export function StudentProfileView({
         {/* Academic information */}
         <View style={styles.block}>
           <SectionHeader title="Academic" divider />
+          {student.mappingStatus === 'NEEDS_MAPPING' ? <Card style={styles.mappingWarning}><View style={styles.warnRow}><Icon name="warning" size={18} color={palette.onTertiaryFixedVariant} /><View style={styles.summaryText}><Text variant="bodyLg" color={palette.onTertiaryFixedVariant}>Academic placement required</Text><Text variant="labelMd" color={palette.onTertiaryFixedVariant}>{student.mappingNote || 'The recorded legacy values have not yet been confirmed against the academic hierarchy.'}</Text></View></View></Card> : null}
           <Card padded={false} style={styles.factCard}>
-            <FactRow icon="institution" label="Department" value={student.department} />
+            {academicFacts.length ? academicFacts.map((fact,index) => <FactRow key={fact.label} icon={fact.label === 'Section' ? 'students' : 'institution'} label={fact.label} value={fact.value} last={false} />) : <FactRow icon="institution" label="Department" value={student.department} />}
             <FactRow icon="classes" label="Semester" value={`Semester ${student.semester}`} />
-            <FactRow icon="students" label="Section" value={student.section} last />
+            <FactRow icon="students" label="Recorded section" value={student.section} last />
           </Card>
         </View>
 
@@ -375,6 +390,13 @@ export function StudentProfileView({
           <SectionHeader title="Recognition" divider />
         <FaceEnrolmentCard enrolled={student.faceEnrolled} studentName={student.name} studentId={student.id} />
         </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Activity" meta={`${student.activity?.length ?? 0} recent`} divider />
+          <Card padded={false}>
+            {student.activity?.length ? student.activity.map((entry,index) => <View key={entry.id} style={[styles.activityRow,index<student.activity!.length-1&&styles.factDivider]}><View style={styles.flex}><Text variant="bodyMd" color={palette.onSurface}>{entry.action.replaceAll('_',' ')}</Text>{entry.reason ? <Text variant="labelMd" color={palette.onSurfaceVariant}>{entry.reason}</Text> : null}</View><Text variant="labelMd" color={palette.outline}>{new Date(entry.createdAt).toLocaleString()}</Text></View>) : <Text color={palette.onSurfaceVariant} style={styles.activityEmpty}>No recent administrative changes.</Text>}
+          </Card>
+        </View>
       </Screen>
     </>
   );
@@ -393,6 +415,19 @@ const styles = StyleSheet.create({
   },
   factCard: {
     paddingHorizontal: spacing.md,
+  },
+  mappingWarning: {
+    marginBottom: spacing.sm,
+    backgroundColor: palette.tertiaryFixed,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  activityEmpty: {
+    padding: spacing.md,
   },
   factRow: {
     flexDirection: 'row',

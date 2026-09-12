@@ -11,6 +11,8 @@ depends_on = None
 
 
 def _table(name, columns, constraints=()):
+    if sa.inspect(op.get_bind()).has_table(name):
+        return
     op.create_table(name, *columns, *constraints)
 
 

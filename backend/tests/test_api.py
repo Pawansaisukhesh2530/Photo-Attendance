@@ -200,6 +200,44 @@ def test_student_and_class_departments_must_come_from_settings(client, identitie
     assert course.json()["title"]=="Invalid department"
 
 
+def test_class_types_come_from_settings_and_changes_are_audited(client, identities):
+    headers = auth(identities["admin_token"])
+    current = client.get("/api/v1/settings", headers=headers)
+    assert current.status_code == 200
+    changed = client.patch(
+        "/api/v1/settings",
+        headers=headers,
+        json={
+            "class_types": ["Seminar"],
+            "academic_session": "2027-28",
+            "semester_count": 6,
+            "version": current.json()["version"],
+        },
+    )
+    assert changed.status_code == 200
+    assert changed.json()["class_types"] == ["Seminar"]
+    assert changed.json()["academic_session"] == "2027-28"
+    assert changed.json()["semester_count"] == 6
+
+    rejected = client.post(
+        "/api/v1/classes",
+        headers=headers,
+        json={"code":"TYPE-1","variant":"Lecture","subject":"Test","department":"CSE","semester":1,"section":"A","academic_session":"2026-27"},
+    )
+    assert rejected.status_code == 422
+    accepted = client.post(
+        "/api/v1/classes",
+        headers=headers,
+        json={"code":"TYPE-1","variant":"Seminar","subject":"Test","department":"CSE","semester":1,"section":"A","academic_session":"2026-27"},
+    )
+    assert accepted.status_code == 201
+
+    audit_rows = client.get("/api/v1/audit?action=SETTING_CHANGED", headers=headers).json()
+    assert audit_rows["total"] == 1
+    assert audit_rows["items"][0]["before"]["class_types"] == ["Lecture", "Lab", "Tutorial"]
+    assert audit_rows["items"][0]["after"]["class_types"] == ["Seminar"]
+
+
 def test_faculty_email_requires_institution_domain_and_can_be_corrected(client, identities):
     headers=auth(identities["admin_token"])
     invalid=client.post("/api/v1/faculty",json={"email":"typo@christuniverisity.in","password":"StrongPass123!","employee_id":"FAC-TYPO","name":"Typo Faculty","department":"CSE","designation":"Faculty"},headers=headers)
@@ -350,7 +388,7 @@ def test_matching_uses_multiple_templates_and_ambiguity(monkeypatch):
 
 def test_openapi_contains_integration_surface(client):
     schema=client.get("/openapi.json").json();paths=schema["paths"]
-    for path in ["/api/v1/auth/login","/api/v1/faculty","/api/v1/students","/api/v1/classes","/api/v1/attendance/sessions","/api/v1/reports/attendance","/api/v1/audit"]:
+    for path in ["/api/v1/auth/login","/api/v1/faculty","/api/v1/students","/api/v1/classes","/api/v1/attendance/sessions","/api/v1/reports/attendance","/api/v1/reports/attendance/export","/api/v1/audit"]:
         assert path in paths
     upload=schema["components"]["schemas"]["Body_upload_session_images_api_v1_attendance_sessions__session_id__images_post"]
     assert upload["properties"]["files"]["items"]["format"]=="binary"
@@ -537,6 +575,9 @@ def test_reports_return_real_aggregates_and_honor_scope(client, identities):
     assert history["total"]==1
     low=client.get(f"/api/v1/reports/attendance/students?classId={assigned}&lowAttendanceOnly=true",headers=headers).json()
     assert low["total"]==1 and low["items"][0]["name"]=="Absent Student"
+    exported=client.get(f"/api/v1/reports/attendance/export?classId={assigned}&lowAttendanceOnly=true&format=csv",headers=headers)
+    assert exported.status_code==200 and exported.headers["content-type"].startswith("text/csv")
+    assert "Absent Student" in exported.text and "Selected Student" not in exported.text
     directory_low=client.get(f"/api/v1/students?classId={assigned}&lowAttendanceOnly=true",headers=headers).json()
     assert directory_low["total"]==1 and directory_low["items"][0]["name"]=="Absent Student"
     course=client.get(f"/api/v1/classes/{assigned}",headers=headers).json()
@@ -573,3 +614,84 @@ def test_admin_catalogue_and_audit_filters_are_applied(client, identities):
     assert created.status_code==201
     audit_rows=client.get(f"/api/v1/audit?actorId={identities['admin_id']}&action=CLASS_CREATED&search=CLASS",headers=headers).json()
     assert audit_rows["total"]==1 and audit_rows["items"][0]["actor_role"]=="ADMIN"
+
+
+def test_normalized_academic_mapping_and_enrolment_guard(client, identities):
+    headers=auth(identities["admin_token"])
+    def create(kind, body):
+        response=client.post(f"/api/v1/academic/{kind}",json=body,headers=headers)
+        assert response.status_code==201,response.text
+        return response.json()
+    school=create("schools",{"code":"SOC","name":"School of Computing"})
+    department=create("departments",{"code":"BCA","name":"Computer Applications","school_id":school["id"]})
+    program=create("programs",{"code":"BCA","name":"Bachelor of Computer Applications","department_id":department["id"]})
+    batch=create("batches",{"code":"2026","name":"2026 to 2029","program_id":program["id"],"start_year":2026,"end_year":2029})
+    section=create("sections",{"code":"A","name":"Section A","batch_id":batch["id"]})
+    subject=create("subjects",{"code":"BCA101","name":"Programming Fundamentals"})
+    link=client.post(f"/api/v1/academic/programs/{program['id']}/subjects",json={"subject_id":subject["id"],"semester_number":1},headers=headers)
+    assert link.status_code==201,link.text
+    mapped=client.post("/api/v1/students",json={"student_id":"MAP-1","roll_number":"MAP-1","name":"Mapped Student","department":"legacy","semester":1,"section":"legacy","school_id":school["id"],"department_id":department["id"],"program_id":program["id"],"batch_id":batch["id"],"section_id":section["id"]},headers=headers)
+    assert mapped.status_code==201,mapped.text
+    assert mapped.json()["mappingStatus"]=="MAPPED"
+    course=client.post("/api/v1/classes",json={"code":"BCA101-A","subject":"ignored","department":"ignored","semester":9,"section":"ignored","academic_session":"2026-27","program_subject_id":link.json()["id"],"section_id":section["id"]},headers=headers)
+    assert course.status_code==201,course.text
+    assert course.json()["subject"]=="Programming Fundamentals" and course.json()["semester"]==1
+    enrolled=client.patch(f"/api/v1/classes/{course.json()['id']}/enrolments",json={"add_student_ids":[mapped.json()["id"]]},headers=headers)
+    assert enrolled.status_code==204,enrolled.text
+    with SessionLocal.begin() as db:
+        session=AttendanceSession(
+            faculty_id=identities["faculty_id"],
+            attendance_date=date.today(),
+            status=SessionStatus.FINALIZED,
+        )
+        db.add(session);db.flush()
+        db.add(AttendanceSessionClass(session_id=session.id,class_id=course.json()["id"]))
+        db.add(AttendanceRecord(
+            session_id=session.id,
+            student_id=mapped.json()["id"],
+            ai_status=AttendanceStatus.PRESENT,
+            status=AttendanceStatus.PRESENT,
+            model_version="test",
+        ))
+    scoped_report=client.get(
+        f"/api/v1/reports/attendance?subjectId={subject['id']}&institutionWide=true",
+        headers=headers,
+    )
+    assert scoped_report.status_code==200,scoped_report.text
+    assert scoped_report.json()["totalSessions"]==1
+    assert scoped_report.json()["scope"]=="SUBJECT"
+    assert scoped_report.json()["scopeId"]==subject["id"]
+    unrelated_subject=create("subjects",{"code":"BCA102","name":"Database Systems"})
+    empty_report=client.get(
+        f"/api/v1/reports/attendance?subjectId={unrelated_subject['id']}&institutionWide=true",
+        headers=headers,
+    )
+    assert empty_report.status_code==200,empty_report.text
+    assert empty_report.json()["totalSessions"]==0
+    legacy=client.post("/api/v1/students",json={"student_id":"MAP-2","roll_number":"MAP-2","name":"Unmapped Student","department":"CSE","semester":1,"section":"A"},headers=headers)
+    assert legacy.status_code==201 and legacy.json()["mappingStatus"]=="NEEDS_MAPPING"
+    blocked=client.patch(f"/api/v1/classes/{course.json()['id']}/enrolments",json={"add_student_ids":[legacy.json()["id"]]},headers=headers)
+    assert blocked.status_code==409 and blocked.json()["title"]=="Student needs academic mapping"
+    report=client.get("/api/v1/academic/mapping-report?search=MAP-2",headers=headers).json()
+    assert report["total"]==1 and report["items"][0]["legacy"]["department"]=="CSE"
+
+    overview=client.get("/api/v1/academic/overview",headers=headers)
+    assert overview.status_code==200,overview.text
+    overview_body=overview.json()
+    assert overview_body["counts"]["schools"]==1
+    assert next(item for item in overview_body["attention"] if item["key"]=="academicPlacement")["count"]==1
+    assert next(item for item in overview_body["attention"] if item["key"]=="classesNeedFaculty")["count"]==1
+
+    workspace=client.get(f"/api/v1/academic/schools/{school['id']}",headers=headers)
+    assert workspace.status_code==200,workspace.text
+    assert workspace.json()["children"][0]["id"]==department["id"]
+    assert workspace.json()["counts"]["departments"]==1
+
+    impact=client.get(f"/api/v1/academic/programs/{program['id']}/impact",headers=headers)
+    assert impact.status_code==200,impact.text
+    assert impact.json()["canArchive"] is False
+    assert impact.json()["blocking"]["batches"]==1
+
+    missing_curriculum=client.get("/api/v1/academic/programs?needsCurriculum=true",headers=headers)
+    assert missing_curriculum.status_code==200
+    assert missing_curriculum.json()["total"]==0

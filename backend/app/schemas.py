@@ -3,7 +3,7 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from .models import AttendanceStatus, FacultyStatus, Role, SessionStatus, SlotType
+from .models import AttendanceStatus, FacultyStatus, MappingStatus, Role, SessionStatus, SlotType
 
 T = TypeVar("T")
 
@@ -55,6 +55,7 @@ class FacultyIn(BaseModel):
     employee_id: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=200)
     department: str = Field(min_length=1, max_length=120)
+    department_id: str | None = None
     designation: str = Field(default="Faculty", max_length=120)
 
     @field_validator("email")
@@ -69,6 +70,7 @@ class FacultyPatch(BaseModel):
     email: EmailStr | None = None
     name: str | None = Field(default=None, min_length=1, max_length=200)
     department: str | None = Field(default=None, min_length=1, max_length=120)
+    department_id: str | None = None
     designation: str | None = Field(default=None, min_length=1, max_length=120)
     status: FacultyStatus | None = None
     version: int
@@ -88,6 +90,7 @@ class FacultyOut(BaseModel):
     employee_id: str
     name: str
     department: str
+    department_id: str | None = None
     designation: str
     status: FacultyStatus
     version: int
@@ -105,6 +108,11 @@ class StudentIn(BaseModel):
     department: str = Field(min_length=1, max_length=120)
     semester: int = Field(ge=1, le=16)
     section: str = Field(min_length=1, max_length=20)
+    school_id: str | None = None
+    department_id: str | None = None
+    program_id: str | None = None
+    batch_id: str | None = None
+    section_id: str | None = None
 
 
 class StudentPatch(BaseModel):
@@ -112,6 +120,11 @@ class StudentPatch(BaseModel):
     department: str | None = Field(default=None, min_length=1)
     semester: int | None = Field(default=None, ge=1, le=16)
     section: str | None = Field(default=None, min_length=1)
+    school_id: str | None = None
+    department_id: str | None = None
+    program_id: str | None = None
+    batch_id: str | None = None
+    section_id: str | None = None
     active: bool | None = None
     version: int
 
@@ -121,6 +134,8 @@ class StudentOut(StudentIn):
     id: str
     active: bool
     version: int
+    mapping_status: MappingStatus
+    mapping_note: str | None = None
 
 
 class ClassIn(BaseModel):
@@ -131,6 +146,8 @@ class ClassIn(BaseModel):
     semester: int = Field(ge=1, le=16)
     section: str = Field(min_length=1, max_length=20)
     academic_session: str = Field(min_length=1, max_length=30)
+    program_subject_id: str | None = None
+    section_id: str | None = None
 
     @field_validator("variant")
     @classmethod
@@ -145,6 +162,8 @@ class ClassPatch(BaseModel):
     semester: int | None = Field(default=None, ge=1, le=16)
     section: str | None = Field(default=None, min_length=1)
     academic_session: str | None = Field(default=None, min_length=1)
+    program_subject_id: str | None = None
+    section_id: str | None = None
     archived: bool | None = None
     version: int
 
@@ -158,6 +177,54 @@ class ClassOut(ClassIn):
     model_config = ConfigDict(from_attributes=True)
     id: str
     archived: bool
+    version: int
+
+
+class AcademicRecordOut(BaseModel):
+    id: str
+    code: str
+    name: str
+    active: bool
+    version: int
+    school_id: str | None = None
+    department_id: str | None = None
+    program_id: str | None = None
+    batch_id: str | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+
+
+class AcademicCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=30)
+    name: str = Field(min_length=1, max_length=180)
+    school_id: str | None = None
+    department_id: str | None = None
+    program_id: str | None = None
+    batch_id: str | None = None
+    start_year: int | None = Field(default=None, ge=1900, le=2200)
+    end_year: int | None = Field(default=None, ge=1900, le=2200)
+
+
+class AcademicPatch(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=30)
+    name: str | None = Field(default=None, min_length=1, max_length=180)
+    active: bool | None = None
+    start_year: int | None = Field(default=None, ge=1900, le=2200)
+    end_year: int | None = Field(default=None, ge=1900, le=2200)
+    version: int
+
+
+class ProgramSubjectLink(BaseModel):
+    subject_id: str
+    semester_number: int | None = Field(default=None, ge=1, le=16)
+
+
+class StudentMappingPatch(BaseModel):
+    school_id: str
+    department_id: str
+    program_id: str
+    batch_id: str
+    section_id: str
     version: int
 
 
@@ -224,9 +291,12 @@ class SettingsPatch(BaseModel):
     institution_name: str | None = Field(default=None, min_length=1, max_length=250)
     institution_code: str | None = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     attendance_threshold: int | None = Field(default=None, ge=1, le=100)
+    academic_session: str | None = Field(default=None, min_length=4, max_length=30)
+    semester_count: int | None = Field(default=None, ge=1, le=20)
     image_retention_days: int | None = Field(default=None, ge=1, le=3650)
     departments: list[str] | None = Field(default=None, min_length=1, max_length=100)
     faculty_roles: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    class_types: list[str] | None = Field(default=None, min_length=1, max_length=100)
     version: int
 
 
@@ -235,11 +305,14 @@ class SettingsOut(BaseModel):
     institution_name: str
     institution_code: str = "EDU"
     attendance_threshold: int
+    academic_session: str = "2026-27"
+    semester_count: int = 8
     image_retention_days: int
     version: int
 
     departments: list[str] = ["CSE"]
     faculty_roles: list[str] = ["Assistant Professor"]
+    class_types: list[str] = ["Lecture", "Lab", "Tutorial"]
 
 
 class TimetableSlotIn(BaseModel):

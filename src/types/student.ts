@@ -12,6 +12,15 @@ export interface Student {
   department: string;
   semester: number;
   section: string;
+  schoolId?: Id | null;
+  departmentId?: Id | null;
+  programId?: Id | null;
+  batchId?: Id | null;
+  sectionId?: Id | null;
+  mappingStatus?: 'NEEDS_MAPPING' | 'MAPPED';
+  mappingNote?: string | null;
+  active: boolean;
+  version: number;
   /** Percentage 0..100 across all enrolled classes. */
   overallAttendance: number;
   /**
@@ -64,6 +73,7 @@ export interface StudentProfile extends Student {
   recentAttendance: StudentAttendanceEntry[];
   /** Per-class attendance percentage, keyed by class id. */
   attendanceByClass: Record<Id, number>;
+  activity?: { id: Id; action: string; createdAt: IsoDate; reason?: string | null }[];
 }
 
 /**
@@ -80,8 +90,14 @@ export interface StudentProfile extends Student {
  */
 export interface StudentQuery extends PageRequest {
   classId?: Id;
+  schoolId?: Id;
   search?: string;
   department?: string;
+  departmentId?: Id;
+  programId?: Id;
+  batchId?: Id;
+  sectionId?: Id;
+  mappingStatus?: 'NEEDS_MAPPING'|'MAPPED';
   semester?: number;
   /** Filters to students below the institutional attendance threshold. */
   lowAttendanceOnly?: boolean;
@@ -89,6 +105,22 @@ export interface StudentQuery extends PageRequest {
 
 export interface CreateStudentRequest {
   studentId:string; rollNumber:string; name:string; department:string; semester:number; section:string;
+  schoolId:Id; departmentId:Id; programId:Id; batchId:Id; sectionId:Id;
+}
+
+export interface UpdateStudentRequest {
+  studentId: Id;
+  name: string;
+  department: string;
+  semester: number;
+  section: string;
+  schoolId: Id;
+  departmentId: Id;
+  programId: Id;
+  batchId: Id;
+  sectionId: Id;
+  active?: boolean;
+  version: number;
 }
 
 export interface FaceImageInfo {

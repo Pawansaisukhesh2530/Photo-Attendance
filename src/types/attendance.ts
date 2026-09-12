@@ -341,6 +341,11 @@ export interface FinalizeSessionRequest {
 export interface AttendanceHistoryQuery extends PageRequest {
   classId?: Id;
   facultyId?: Id;
+  schoolId?: Id;
+  departmentId?: Id;
+  programId?: Id;
+  batchId?: Id;
+  sectionId?: Id;
   from?: IsoDate;
   to?: IsoDate;
   status?: SessionStatus;

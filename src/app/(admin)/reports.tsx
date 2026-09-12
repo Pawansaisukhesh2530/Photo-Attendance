@@ -1,12 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 import {
   AdminScaffold,
+  AcademicHierarchyFields,
   AttendanceTrendChart,
   Avatar,
   Badge,
+  Button,
   Card,
   ClassAttendanceBar,
   EmptyState,
@@ -29,6 +31,8 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useInfiniteReportStudents, useReport } from '@/hooks/useReports';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useAcademicTree } from '@/hooks/useAcademic';
+import { reportService } from '@/services';
 import { palette, radius, spacing, useResponsive } from '@/theme';
 import type {
   ClassAttendanceStat,
@@ -69,9 +73,17 @@ export default function AdminReportsScreen() {
     roll?: string;
     q?: string;
     range?: string;
+    schoolId?: string;
+    departmentId?: string;
+    programId?: string;
+    batchId?: string;
+    sectionId?: string;
+    subjectId?: string;
   }>();
   const { isExpanded, screenPadding } = useResponsive();
   const { data: settings } = useInstitutionSettings();
+  const academic=useAcademicTree();
+  const [exporting,setExporting]=useState<string|null>(null);
 
   const department = params.dept && params.dept.length > 0 ? params.dept : undefined;
   const facultyId = params.facultyId && params.facultyId.length > 0 ? params.facultyId : undefined;
@@ -97,13 +109,19 @@ export default function AdminReportsScreen() {
   const scope = useMemo(
     () => ({
       institutionWide: true,
-      ...(department ? { department } : {}),
+      ...(department ? { departmentId:department } : {}),
+      ...(params.schoolId ? { schoolId:params.schoolId } : {}),
+      ...(params.departmentId ? { departmentId:params.departmentId } : {}),
+      ...(params.programId ? { programId:params.programId } : {}),
+      ...(params.batchId ? { batchId:params.batchId } : {}),
+      ...(params.sectionId ? { sectionId:params.sectionId } : {}),
+      ...(params.subjectId ? { subjectId:params.subjectId } : {}),
       ...(facultyId ? { facultyId } : {}),
       ...(classId ? { classId } : {}),
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
     }),
-    [department, facultyId, classId, from, to],
+    [department, facultyId, classId, from, to, params.schoolId, params.departmentId, params.programId, params.batchId, params.sectionId, params.subjectId],
   );
 
   const {
@@ -122,6 +140,12 @@ export default function AdminReportsScreen() {
     }),
     [scope, roll, debouncedSearch],
   );
+
+  const exportReport=useCallback(async(format:'csv'|'xlsx'|'pdf'|'json')=>{
+    setExporting(format);
+    try { await reportService.downloadReport(studentQuery,format); }
+    finally { setExporting(null); }
+  },[studentQuery]);
 
   const {
     data: studentPages,
@@ -158,19 +182,50 @@ export default function AdminReportsScreen() {
   }, []);
 
   const clearScope = useCallback(() => {
-    router.setParams({ dept: '', facultyId: '', classId: '' });
+    router.setParams({ dept:'', facultyId:'', classId:'', schoolId:'', departmentId:'', programId:'', batchId:'', sectionId:'', subjectId:'' });
   }, []);
 
   const deptOptions = useMemo<FilterChipOption<string>[]>(
     () => [
       { value: 'ALL', label: 'Whole institution' },
-      ...(settings?.departments ?? []).map((d) => ({
-        value: d,
-        label: d.split(' ').map((w) => w[0]).join('').toUpperCase(),
+      ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
+        value: d.id,
+        label: d.code,
       })),
     ],
-    [settings],
+    [academic.data],
   );
+
+  const subjectOptions = useMemo<FilterChipOption<string>[]>(() => {
+    const linkedSubjectIds = params.programId
+      ? new Set(
+          (academic.data?.programSubjects ?? [])
+            .filter((link) => link.programId === params.programId)
+            .map((link) => link.subjectId),
+        )
+      : null;
+    return [
+      { value: 'ALL', label: 'All subjects' },
+      ...(academic.data?.subjects ?? [])
+        .filter((subject) => subject.active && (!linkedSubjectIds || linkedSubjectIds.has(subject.id)))
+        .map((subject) => ({ value: subject.id, label: `${subject.code} · ${subject.name}` })),
+    ];
+  }, [academic.data, params.programId]);
+
+  const hierarchyScopeLabel =
+    (params.subjectId
+      ? academic.data?.subjects.find((item) => item.id === params.subjectId)?.name
+      : params.sectionId
+        ? academic.data?.sections.find((item) => item.id === params.sectionId)?.name
+        : params.batchId
+          ? academic.data?.batches.find((item) => item.id === params.batchId)?.name
+          : params.programId
+            ? academic.data?.programs.find((item) => item.id === params.programId)?.name
+            : params.departmentId
+              ? academic.data?.departments.find((item) => item.id === params.departmentId)?.name
+              : params.schoolId
+                ? academic.data?.schools.find((item) => item.id === params.schoolId)?.name
+                : undefined) ?? report?.scopeId;
 
   const scaffold = {
     active: 'reports',
@@ -182,7 +237,9 @@ export default function AdminReportsScreen() {
           ? 'Single lecturer'
           : report?.scope === 'DEPARTMENT'
             ? (report.scopeId ?? 'Department')
-            : 'Institution-wide attendance',
+            : report?.scope === 'INSTITUTION'
+              ? 'Institution-wide attendance'
+              : hierarchyScopeLabel ?? 'Academic scope',
     breadcrumbs: [
       { label: 'Administration', href: '/(admin)/dashboard' },
       { label: 'Reports' },
@@ -221,7 +278,7 @@ export default function AdminReportsScreen() {
 
   const threshold = report.threshold;
   const hasData = report.totalSessions > 0;
-  const scoped = Boolean(department || facultyId || classId);
+  const scoped = Boolean(department || facultyId || classId || params.schoolId || params.departmentId || params.programId || params.batchId || params.sectionId || params.subjectId);
 
   /**
    * Date-range selector, reused by the empty state and the loaded header so a too-narrow range can
@@ -240,6 +297,15 @@ export default function AdminReportsScreen() {
     return (
       <AdminScaffold {...scaffold}>
         <View style={[styles.loading, { paddingHorizontal: screenPadding }]}>
+          <Card>
+            <SectionHeader title="Academic scope" divider />
+            <AcademicHierarchyFields value={{schoolId:params.schoolId??'',departmentId:params.departmentId??'',programId:params.programId??'',batchId:params.batchId??'',sectionId:params.sectionId??''}} onChange={(value)=>router.setParams({ schoolId:value.schoolId,departmentId:value.departmentId,programId:value.programId,batchId:value.batchId,sectionId:value.sectionId,subjectId:'' })} />
+            <FilterChips
+              options={subjectOptions}
+              selected={params.subjectId ?? 'ALL'}
+              onSelect={(value) => router.setParams({ subjectId: value === 'ALL' ? '' : value })}
+            />
+          </Card>
           <FilterChips
             options={deptOptions}
             selected={department ?? 'ALL'}
@@ -279,6 +345,25 @@ export default function AdminReportsScreen() {
 
   const listHeader = (
     <View style={styles.headerBlocks}>
+      <Card>
+        <SectionHeader title="Academic scope" divider />
+        <AcademicHierarchyFields
+          value={{schoolId:params.schoolId??'',departmentId:params.departmentId??'',programId:params.programId??'',batchId:params.batchId??'',sectionId:params.sectionId??''}}
+          onChange={(value)=>router.setParams({
+            schoolId: value.schoolId,
+            departmentId: value.departmentId,
+            programId: value.programId,
+            batchId: value.batchId,
+            sectionId: value.sectionId,
+            subjectId: '',
+          })}
+        />
+        <FilterChips
+          options={subjectOptions}
+          selected={params.subjectId ?? 'ALL'}
+          onSelect={(value) => router.setParams({ subjectId: value === 'ALL' ? '' : value })}
+        />
+      </Card>
       {/* Department scope */}
       <FilterChips
         options={deptOptions}
@@ -301,7 +386,7 @@ export default function AdminReportsScreen() {
               ? `Scoped to one class`
               : report.scope === 'FACULTY'
                 ? 'Scoped to one lecturer'
-                : `Scoped to ${report.scopeId}`}
+                : `Scoped to ${hierarchyScopeLabel ?? report.scopeId}`}
           </Text>
           <Text
             variant="labelMd"
@@ -324,6 +409,16 @@ export default function AdminReportsScreen() {
           <Text variant="labelMd" color={palette.onSurfaceVariant}>
             {formatShortDate(report.from)} to {formatShortDate(report.to)}
           </Text>
+        </View>
+      </View>
+
+      <View>
+        <SectionHeader title="Export current report" meta="Uses the filters above" divider />
+        <View style={styles.exportRow}>
+          {(['csv','xlsx','pdf','json'] as const).map((format)=>(
+            <Button key={format} label={format.toUpperCase()} icon="download" size="sm" variant="secondary"
+              loading={exporting===format} disabled={exporting!==null} onPress={()=>void exportReport(format)} />
+          ))}
         </View>
       </View>
 
@@ -733,6 +828,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs + 2,
+  },
+  exportRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   overallRow: {
     flexDirection: 'row',

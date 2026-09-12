@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import {
   AdminPagedList,
   AdminScaffold,
+  AcademicHierarchyFields,
   Badge,
   ClassCodeTag,
   DataTableRow,
@@ -44,6 +45,11 @@ export default function AdminAttendanceScreen() {
     classId?: string;
     status?: string;
     pending?: string;
+    schoolId?: string;
+    departmentId?: string;
+    programId?: string;
+    batchId?: string;
+    sectionId?: string;
   }>();
   const { isExpanded, screenPadding } = useResponsive();
   const { data: settings } = useInstitutionSettings();
@@ -52,7 +58,7 @@ export default function AdminAttendanceScreen() {
   const classId = params.classId && params.classId.length > 0 ? params.classId : undefined;
   const pendingOnly = params.pending === '1';
   const status: StatusFilter =
-    params.status === 'FINALIZED' || params.status === 'READY' || params.status === 'PENDING_REVIEW'
+    params.status === 'FINALIZED' || params.status === 'READY' || params.status === 'PENDING_REVIEW' || params.status === 'FAILED'
       ? params.status
       : 'ALL';
 
@@ -78,8 +84,13 @@ export default function AdminAttendanceScreen() {
       ...(classId ? { classId } : {}),
       ...(status !== 'ALL' ? { status: status as SessionStatus } : {}),
       ...(pendingOnly ? { pendingReviewOnly: true } : {}),
+      ...(params.schoolId ? { schoolId:params.schoolId } : {}),
+      ...(params.departmentId ? { departmentId:params.departmentId } : {}),
+      ...(params.programId ? { programId:params.programId } : {}),
+      ...(params.batchId ? { batchId:params.batchId } : {}),
+      ...(params.sectionId ? { sectionId:params.sectionId } : {}),
     }),
-    [debouncedSearch, classId, status, pendingOnly],
+    [debouncedSearch, classId, status, pendingOnly, params.schoolId, params.departmentId, params.programId, params.batchId, params.sectionId],
   );
 
   const {
@@ -110,9 +121,9 @@ export default function AdminAttendanceScreen() {
   }, []);
 
   const hasFilters =
-    search.trim().length > 0 || Boolean(classId) || status !== 'ALL' || pendingOnly;
+    search.trim().length > 0 || Boolean(classId) || status !== 'ALL' || pendingOnly || Boolean(params.schoolId || params.departmentId || params.programId || params.batchId || params.sectionId);
   const clearFilters = useCallback(() => {
-    router.setParams({ q: '', classId: '', status: '', pending: '' });
+    router.setParams({ q:'', classId:'', status:'', pending:'', schoolId:'', departmentId:'', programId:'', batchId:'', sectionId:'' });
   }, []);
 
   const classOptions = useMemo<FilterChipOption<string>[]>(
@@ -288,6 +299,7 @@ export default function AdminAttendanceScreen() {
         )}
         filters={
           <>
+            <AcademicHierarchyFields value={{schoolId:params.schoolId??'',departmentId:params.departmentId??'',programId:params.programId??'',batchId:params.batchId??'',sectionId:params.sectionId??''}} onChange={(value)=>router.setParams({schoolId:value.schoolId,departmentId:value.departmentId,programId:value.programId,batchId:value.batchId,sectionId:value.sectionId})} />
             <SearchField
               value={search}
               onChangeText={(value) => setParam('q', value)}

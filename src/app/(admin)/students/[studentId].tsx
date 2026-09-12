@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { AdminScaffold, StudentProfileView, useStudentHeaderTitle } from '@/components';
+import { AdminScaffold, Button, StudentProfileView, useStudentHeaderTitle } from '@/components';
 import { useInstitutionSettings } from '@/hooks/useSettings';
 
 /**
@@ -33,6 +33,7 @@ export default function AdminStudentProfileScreen() {
         { label: title },
       ]}
       onBack={() => router.back()}
+      action={<Button label="Edit" icon="edit" size="sm" variant="secondary" onPress={() => router.push({ pathname:'/(admin)/students/new', params:{ studentId } })} />}
       {...(settings
         ? {
             institutionName: settings.institutionName,

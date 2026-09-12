@@ -1,12 +1,12 @@
 import hashlib
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .errors import Problem
 from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass, AttendanceSessionImage,
                      AttendanceStatus, AuditEntry, CourseClass, Enrolment, Faculty,
-                     FacultyClassAssignment, SessionStatus, User)
+                     FacultyClassAssignment, MappingStatus, SessionStatus, Student, User)
 
 
 def audit(db: Session, actor: User, action: str, entity, before=None, after=None, reason=None) -> None:
@@ -51,7 +51,7 @@ def require_session_access(db: Session, user: User, session_id: str) -> Attendan
 
 def candidate_student_ids(db: Session, session_id: str) -> list[str]:
     class_ids = select(AttendanceSessionClass.class_id).where(AttendanceSessionClass.session_id == session_id)
-    return list(db.scalars(select(Enrolment.student_id).where(Enrolment.class_id.in_(class_ids)).distinct()))
+    return list(db.scalars(select(Enrolment.student_id).join(Student,Student.id==Enrolment.student_id).join(CourseClass,CourseClass.id==Enrolment.class_id).where(Enrolment.class_id.in_(class_ids),or_(CourseClass.program_subject_id.is_(None),Student.mapping_status==MappingStatus.MAPPED)).distinct()))
 
 
 def make_job_key(db: Session, session_id: str) -> str:

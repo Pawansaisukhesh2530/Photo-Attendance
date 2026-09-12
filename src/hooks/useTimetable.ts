@@ -9,6 +9,7 @@ import { timetableService } from '@/services';
 import { queryKeys } from '@/store/queryClient';
 import type {
   CreateTimetableSlotRequest,
+  TimetableQuery,
   TimetableSlot,
   UpdateTimetableSlotRequest,
 } from '@/types';
@@ -44,6 +45,13 @@ export function useFacultyTimetable(
     queryKey: queryKeys.timetable.faculty(facultyId ?? ''),
     queryFn: () => timetableService.getFacultyTimetable(facultyId!),
     enabled: Boolean(facultyId),
+  });
+}
+
+export function useAdminTimetable(query?: TimetableQuery) {
+  return useQuery({
+    queryKey: [...queryKeys.timetable.all, 'admin', query],
+    queryFn: () => timetableService.getTimetable(query),
   });
 }
 

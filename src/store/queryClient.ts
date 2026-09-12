@@ -32,8 +32,14 @@ export const queryClient = new QueryClient({
 /** The filter half of a student query — everything except the page cursor. */
 interface StudentFilterKey {
   classId?: string;
+  schoolId?: string;
   search?: string;
   department?: string;
+  departmentId?: string;
+  programId?: string;
+  batchId?: string;
+  sectionId?: string;
+  mappingStatus?: string;
   semester?: number;
   lowAttendanceOnly?: boolean;
 }
@@ -51,8 +57,14 @@ function studentFilterKey(query?: StudentFilterKey): string {
   if (!query) return 'all';
   return JSON.stringify({
     classId: query.classId ?? null,
+    schoolId: query.schoolId ?? null,
     search: query.search ?? null,
     department: query.department ?? null,
+    departmentId: query.departmentId ?? null,
+    programId: query.programId ?? null,
+    batchId: query.batchId ?? null,
+    sectionId: query.sectionId ?? null,
+    mappingStatus: query.mappingStatus ?? null,
     semester: query.semester ?? null,
     lowAttendanceOnly: query.lowAttendanceOnly ?? false,
   });
@@ -70,6 +82,12 @@ interface ReportScopeKey {
   classId?: string;
   facultyId?: string;
   department?: string;
+  schoolId?: string;
+  departmentId?: string;
+  programId?: string;
+  batchId?: string;
+  sectionId?: string;
+  subjectId?: string;
   institutionWide?: boolean;
   from?: string;
   to?: string;
@@ -89,6 +107,12 @@ function reportScopeKey(query?: ReportScopeKey): string {
     classId: query.classId ?? null,
     facultyId: query.facultyId ?? null,
     department: query.department ?? null,
+    schoolId: query.schoolId ?? null,
+    departmentId: query.departmentId ?? null,
+    programId: query.programId ?? null,
+    batchId: query.batchId ?? null,
+    sectionId: query.sectionId ?? null,
+    subjectId: query.subjectId ?? null,
     // Institution scope is a genuinely different result from faculty scope for the same filters,
     // so it has to be part of the identity.
     institutionWide: query.institutionWide ?? false,
@@ -107,6 +131,11 @@ function reportScopeKey(query?: ReportScopeKey): string {
 interface HistoryFilterKey {
   classId?: string;
   facultyId?: string;
+  schoolId?: string;
+  departmentId?: string;
+  programId?: string;
+  batchId?: string;
+  sectionId?: string;
   status?: string;
   from?: string;
   to?: string;
@@ -119,6 +148,11 @@ function historyFilterKey(query?: HistoryFilterKey): string {
   return JSON.stringify({
     classId: query.classId ?? null,
     facultyId: query.facultyId ?? null,
+    schoolId: query.schoolId ?? null,
+    departmentId: query.departmentId ?? null,
+    programId: query.programId ?? null,
+    batchId: query.batchId ?? null,
+    sectionId: query.sectionId ?? null,
     status: query.status ?? null,
     from: query.from ?? null,
     to: query.to ?? null,
@@ -132,8 +166,16 @@ interface ClassFilterKey {
   semester?: number;
   search?: string;
   department?: string;
+  schoolId?: string;
+  departmentId?: string;
+  programId?: string;
+  batchId?: string;
+  programSubjectId?: string;
+  sectionId?: string;
   status?: string;
   unassignedOnly?: boolean;
+  unscheduledOnly?: boolean;
+  emptyRosterOnly?: boolean;
 }
 
 function classFilterKey(query?: ClassFilterKey): string {
@@ -143,8 +185,16 @@ function classFilterKey(query?: ClassFilterKey): string {
     semester: query.semester ?? null,
     search: query.search ?? null,
     department: query.department ?? null,
+    schoolId: query.schoolId ?? null,
+    departmentId: query.departmentId ?? null,
+    programId: query.programId ?? null,
+    batchId: query.batchId ?? null,
+    programSubjectId: query.programSubjectId ?? null,
+    sectionId: query.sectionId ?? null,
     status: query.status ?? null,
     unassignedOnly: query.unassignedOnly ?? false,
+    unscheduledOnly: query.unscheduledOnly ?? false,
+    emptyRosterOnly: query.emptyRosterOnly ?? false,
   });
 }
 
@@ -177,8 +227,11 @@ function auditFilterKey(query?: AuditFilterKey): string {
 interface FacultyFilterKey {
   search?: string;
   department?: string;
+  departmentId?: string;
+  schoolId?: string;
   status?: string;
   classId?: string;
+  assignedOnly?: boolean;
 }
 
 function facultyFilterKey(query?: FacultyFilterKey): string {
@@ -186,8 +239,11 @@ function facultyFilterKey(query?: FacultyFilterKey): string {
   return JSON.stringify({
     search: query.search ?? null,
     department: query.department ?? null,
+    departmentId: query.departmentId ?? null,
+    schoolId: query.schoolId ?? null,
     status: query.status ?? null,
     classId: query.classId ?? null,
+    assignedOnly: query.assignedOnly ?? false,
   });
 }
 

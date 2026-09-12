@@ -70,7 +70,16 @@ export interface FacultyAttendanceStat {
  * totals; `lowAttendanceStudents` is a bounded preview for the summary card only.
  */
 export interface AttendanceReport {
-  scope: 'INSTITUTION' | 'FACULTY' | 'CLASS' | 'DEPARTMENT';
+  scope:
+    | 'INSTITUTION'
+    | 'SCHOOL'
+    | 'DEPARTMENT'
+    | 'PROGRAMME'
+    | 'BATCH'
+    | 'SECTION'
+    | 'SUBJECT'
+    | 'FACULTY'
+    | 'CLASS';
   scopeId: Id | null;
   from: IsoDate;
   to: IsoDate;
@@ -117,6 +126,12 @@ export interface ReportQuery {
    * intersection, never a union — a stale filter must narrow the result, never widen it.
    */
   department?: string;
+  schoolId?: Id;
+  departmentId?: Id;
+  programId?: Id;
+  batchId?: Id;
+  sectionId?: Id;
+  subjectId?: Id;
 
   /**
    * Requests institution-wide scope, ignoring the caller's own faculty assignment.

@@ -11,8 +11,10 @@ export const studentsApi: StudentService = {
     request<Paginated<Student>>('students', {
       query: {
         classId: query?.classId,
+        schoolId: query?.schoolId,
         search: query?.search,
         department: query?.department,
+        departmentId: query?.departmentId, programId:query?.programId, batchId:query?.batchId, sectionId:query?.sectionId, mappingStatus:query?.mappingStatus,
         semester: query?.semester,
         lowAttendanceOnly: query?.lowAttendanceOnly,
         // Omitted when undefined by `request`, so the server applies its own defaults.
@@ -22,7 +24,9 @@ export const studentsApi: StudentService = {
     }),
 
   getStudent: (studentId) => request<StudentProfile>(`students/${studentId}`),
-  createStudent:(p)=>request<Student>('students',{method:'POST',body:{student_id:p.studentId,roll_number:p.rollNumber,name:p.name,department:p.department,semester:p.semester,section:p.section}}),
+  createStudent:(p)=>request<Student>('students',{method:'POST',body:{student_id:p.studentId,roll_number:p.rollNumber,name:p.name,department:p.department,semester:p.semester,section:p.section,school_id:p.schoolId,department_id:p.departmentId,program_id:p.programId,batch_id:p.batchId,section_id:p.sectionId}}),
+  updateStudent:(p)=>request<StudentProfile>(`students/${p.studentId}`,{method:'PATCH',body:{name:p.name,department:p.department,semester:p.semester,section:p.section,school_id:p.schoolId,department_id:p.departmentId,program_id:p.programId,batch_id:p.batchId,section_id:p.sectionId,active:p.active,version:p.version}}),
+  mapAcademic:(studentId,p,version)=>request<StudentProfile>(`students/${studentId}/academic-mapping`,{method:'PUT',body:{school_id:p.schoolId,department_id:p.departmentId,program_id:p.programId,batch_id:p.batchId,section_id:p.sectionId,version}}),
   async getFaceImages(studentId){const x=await request<{items:any[]}>(`students/${studentId}/face-images`);return x.items.map(i=>({id:i.id,status:i.quality?.status??'PENDING',reason:i.quality?.reason??null,imageUrl:publicUrl(i.image_url),revokedAt:i.revoked_at,width:i.width??0,height:i.height??0,detectedFaces:typeof i.quality?.detected_faces==='number'?i.quality.detected_faces:i.quality?.status==='ACCEPTED'?1:null})) as FaceImageInfo[]},
   async uploadFaceImages(studentId,uris){await uploadFiles(`students/${studentId}/face-images`,uris)},
   revokeFaceImage:(studentId,imageId)=>request<void>(`students/${studentId}/face-images/${imageId}`,{method:'DELETE'}),

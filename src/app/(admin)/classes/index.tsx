@@ -23,6 +23,7 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { useInfiniteClasses } from '@/hooks/useClassAdmin';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { CourseClass } from '@/types';
 
@@ -40,9 +41,10 @@ type DeptFilter = 'ALL' | string;
  * have nobody teaching them, and which are archived.
  */
 export default function AdminClassesScreen() {
-  const params = useLocalSearchParams<{ q?: string; dept?: string; sem?: string; scope?: string }>();
+  const params = useLocalSearchParams<{ q?: string; dept?: string; sem?: string; scope?: string; schoolId?: string; departmentId?: string; programId?: string; batchId?: string; sectionId?: string; unassignedOnly?: string; unscheduledOnly?: string; emptyRosterOnly?: string }>();
   const { isExpanded, screenPadding } = useResponsive();
   const { data: settings } = useInstitutionSettings();
+  const academic=useAcademicTree();
 
   const search = params.q ?? '';
   const department: DeptFilter = params.dept && params.dept.length > 0 ? params.dept : 'ALL';
@@ -60,13 +62,21 @@ export default function AdminClassesScreen() {
   const query = useMemo(
     () => ({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
-      ...(department !== 'ALL' ? { department } : {}),
+      ...(department !== 'ALL' ? { departmentId:department } : {}),
       ...(semester !== 'ALL' ? { semester: Number(semester) } : {}),
       ...(scope === 'UNASSIGNED' ? { unassignedOnly: true } : {}),
+      ...(params.schoolId ? { schoolId: params.schoolId } : {}),
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params.programId ? { programId: params.programId } : {}),
+      ...(params.batchId ? { batchId: params.batchId } : {}),
+      ...(params.sectionId ? { sectionId: params.sectionId } : {}),
+      ...(params.unassignedOnly === 'true' ? { unassignedOnly: true } : {}),
+      ...(params.unscheduledOnly === 'true' ? { unscheduledOnly: true } : {}),
+      ...(params.emptyRosterOnly === 'true' ? { emptyRosterOnly: true } : {}),
       // Archived is opt-in: an admin looking at "classes" means the ones running now.
       ...(scope === 'ARCHIVED' ? { status: 'ARCHIVED' as const } : { status: 'ACTIVE' as const }),
     }),
-    [debouncedSearch, department, semester, scope],
+    [debouncedSearch, department, semester, scope, params.schoolId, params.departmentId, params.programId, params.batchId, params.sectionId, params.unassignedOnly, params.unscheduledOnly, params.emptyRosterOnly],
   );
 
   const {
@@ -94,20 +104,22 @@ export default function AdminClassesScreen() {
   }, []);
 
   const hasFilters =
-    search.trim().length > 0 || department !== 'ALL' || semester !== 'ALL' || scope !== 'ALL';
+    search.trim().length > 0 || department !== 'ALL' || semester !== 'ALL' || scope !== 'ALL' ||
+    Boolean(params.schoolId || params.departmentId || params.programId || params.batchId || params.sectionId ||
+      params.unassignedOnly || params.unscheduledOnly || params.emptyRosterOnly);
   const clearFilters = useCallback(() => {
-    router.setParams({ q: '', dept: '', sem: '', scope: '' });
+    router.setParams({ q: '', dept: '', sem: '', scope: '', schoolId: '', departmentId: '', programId: '', batchId: '', sectionId: '', unassignedOnly: '', unscheduledOnly: '', emptyRosterOnly: '' });
   }, []);
 
   const deptOptions = useMemo<FilterChipOption<DeptFilter>[]>(
     () => [
       { value: 'ALL', label: 'All departments' },
-      ...(settings?.departments ?? []).map((d) => ({
-        value: d,
-        label: d.split(' ').map((w) => w[0]).join('').toUpperCase(),
+      ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
+        value: d.id,
+        label: d.code,
       })),
     ],
-    [settings],
+    [academic.data],
   );
 
   const semesterOptions = useMemo<FilterChipOption<string>[]>(() => {

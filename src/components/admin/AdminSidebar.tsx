@@ -9,7 +9,7 @@ import { Text } from '@/components/primitives/Text';
 import { palette, radius, spacing, touch } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 
-import { ADMIN_DESTINATIONS } from './adminNav';
+import { ADMIN_DESTINATIONS, ADMIN_GROUP_ORDER } from './adminNav';
 
 export interface AdminSidebarProps {
   /** Route segment of the active destination, e.g. "faculty". */
@@ -103,15 +103,25 @@ export function AdminSidebar({ active, institutionName, institutionCode }: Admin
         contentContainerStyle={styles.navContent}
         showsVerticalScrollIndicator={false}
       >
-        {ADMIN_DESTINATIONS.map((destination) => (
-          <NavItem
-            key={destination.segment}
-            label={destination.label}
-            icon={destination.icon}
-            active={destination.segment === active}
-            onPress={() => router.replace(destination.href as never)}
-          />
-        ))}
+        {ADMIN_GROUP_ORDER.map((group) => {
+          const destinations = ADMIN_DESTINATIONS.filter((destination) => destination.group === group);
+          return (
+            <View key={group} style={styles.navGroup}>
+              <Text variant="labelMd" color={palette.outline} style={styles.groupLabel}>
+                {group.toUpperCase()}
+              </Text>
+              {destinations.map((destination) => (
+                <NavItem
+                  key={destination.segment}
+                  label={destination.label}
+                  icon={destination.icon}
+                  active={destination.segment === active}
+                  onPress={() => router.replace(destination.href as never)}
+                />
+              ))}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -174,7 +184,15 @@ const styles = StyleSheet.create({
   },
   navContent: {
     paddingVertical: spacing.sm,
-    gap: spacing.xs,
+    gap: spacing.sm,
+  },
+  navGroup: {
+    gap: 2,
+  },
+  groupLabel: {
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.xs,
+    letterSpacing: 0.9,
   },
   item: {
     flexDirection: 'row',

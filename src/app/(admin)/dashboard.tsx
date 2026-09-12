@@ -18,7 +18,9 @@ import {
   SkeletonCard,
   SkeletonListItem,
   Text,
+  AnimatedPressable,
 } from '@/components';
+import { useAcademicOverview } from '@/hooks/useAcademic';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import { palette, radius, spacing, useResponsive } from '@/theme';
 import type { AttendanceSessionSummary, ClassAttendanceStat } from '@/types';
@@ -37,6 +39,7 @@ import type { AttendanceSessionSummary, ClassAttendanceStat } from '@/types';
  */
 export default function AdminDashboardScreen() {
   const dashboard = useAdminDashboard();
+  const academic = useAcademicOverview();
   const { isExpanded, screenPadding, metricColumns } = useResponsive();
 
   const scaffoldProps = {
@@ -49,17 +52,17 @@ export default function AdminDashboardScreen() {
     ...(dashboard.institutionCode ? { institutionCode: dashboard.institutionCode } : {}),
   };
 
-  if (dashboard.error && !dashboard.isLoading) {
+  if ((dashboard.error || academic.error) && !dashboard.isLoading && !academic.isLoading) {
     return (
       <AdminScaffold {...scaffoldProps}>
         <View style={styles.centre}>
-          <ErrorState error={dashboard.error} onRetry={dashboard.refetch} />
+          <ErrorState error={dashboard.error ?? academic.error} onRetry={() => { dashboard.refetch(); void academic.refetch(); }} />
         </View>
       </AdminScaffold>
     );
   }
 
-  if (dashboard.isLoading) {
+  if (dashboard.isLoading || academic.isLoading) {
     return (
       <AdminScaffold {...scaffoldProps}>
         <View style={[styles.loading, { paddingHorizontal: screenPadding }]}>
@@ -96,83 +99,46 @@ export default function AdminDashboardScreen() {
         refreshing={dashboard.isRefetching}
         contentContainerStyle={styles.content}
       >
-        {/* Six primary metrics. */}
+        {/* The institutional catalogue is the dashboard's primary navigation. */}
         <View style={styles.grid}>
-          <View style={cell}>
-            <MetricCard
-              label="Students"
-              value={dashboard.totalStudents}
-              icon="students"
-              accent={palette.onSurface}
-              well={palette.surfaceContainerHigh}
-            />
-          </View>
-          <View style={cell}>
-            <MetricCard
-              label="Faculty"
-              value={dashboard.totalFaculty}
-              icon="faculty"
-              accent={palette.onSurface}
-              well={palette.surfaceContainerHigh}
-              suffix={`/${dashboard.activeFaculty} active`}
-            />
-          </View>
-          <View style={cell}>
-            <MetricCard
-              label="Classes"
-              value={dashboard.totalClasses}
-              icon="classes"
-              accent={palette.onSurface}
-              well={palette.surfaceContainerHigh}
-            />
-          </View>
-          <View style={cell}>
-            <MetricCard
-              label="Today"
-              value={dashboard.todayPercentage === null ? '--' : `${dashboard.todayPercentage}%`}
-              icon="camera"
-              accent={palette.primary}
-              well={palette.primaryFixed}
-              flag={
-                dashboard.todaySessions === 0
-                  ? undefined
-                  : `${dashboard.todaySessions} session${dashboard.todaySessions === 1 ? '' : 's'}`
-              }
-            />
-          </View>
-          <View style={cell}>
-            <MetricCard
-              label="Pending review"
-              value={dashboard.pendingReviewSessions}
-              icon="review"
-              accent={palette.onTertiaryFixedVariant}
-              well={palette.tertiaryContainer}
-              cardBackground={
-                dashboard.pendingReviewSessions > 0 ? palette.tertiaryFixed : undefined
-              }
-              cardBorder={
-                dashboard.pendingReviewSessions > 0 ? palette.tertiaryFixedDim : undefined
-              }
-              {...(dashboard.pendingReviewSessions > 0 ? { flag: 'Action needed' } : {})}
-              onPress={() =>
-                router.push({
-                  pathname: '/(admin)/attendance',
-                  params: { pending: '1' },
-                })
-              }
-            />
-          </View>
-          <View style={cell}>
-            <MetricCard
-              label={threshold !== undefined ? `Below ${threshold}%` : 'Low attendance'}
-              value={dashboard.lowAttendanceStudents}
-              icon="warning"
-              accent={palette.onTertiaryFixedVariant}
-              well={palette.tertiaryContainer}
-              suffix={`/${dashboard.totalStudents}`}
-              onPress={() => router.push('/(admin)/reports')}
-            />
-          </View>
+          {[
+            ['Schools', academic.data?.counts.schools ?? 0, 'institution', '/(admin)/academic-structure?kind=schools'],
+            ['Departments', academic.data?.counts.departments ?? 0, 'institution', '/(admin)/academic-structure?kind=departments'],
+            ['Programmes', academic.data?.counts.programs ?? 0, 'classes', '/(admin)/academic-structure?kind=programs'],
+            ['Batches', academic.data?.counts.batches ?? 0, 'calendar', '/(admin)/academic-structure?kind=batches'],
+            ['Sections', academic.data?.counts.sections ?? 0, 'students', '/(admin)/academic-structure?kind=sections'],
+            ['Subjects', academic.data?.counts.subjects ?? 0, 'reports', '/(admin)/curriculum'],
+            ['Students', academic.data?.counts.students ?? 0, 'students', '/(admin)/students'],
+            ['Faculty', academic.data?.counts.faculty ?? 0, 'faculty', '/(admin)/faculty'],
+            ['Classes', academic.data?.counts.classes ?? 0, 'classes', '/(admin)/classes'],
+          ].map(([label, value, icon, href]) => (
+            <View key={String(label)} style={cell}>
+              <MetricCard label={String(label)} value={Number(value)} icon={icon as 'classes'} accent={palette.onSurface} well={palette.surfaceContainerHigh} onPress={() => router.push(href as never)} />
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Attention required" divider />
+          <Card padded={false}>
+            {(academic.data?.attention ?? []).filter((item) => item.count > 0).length ? (
+              (academic.data?.attention ?? []).filter((item) => item.count > 0).map((item, index, items) => (
+                <AnimatedPressable
+                  key={item.key}
+                  accessibilityRole="link"
+                  onPress={() => router.push({ pathname: item.href as never, params: Object.fromEntries(Object.entries(item.query).map(([key, value]) => [key, String(value)])) } as never)}
+                  style={[styles.attentionRow, index < items.length - 1 && styles.attentionDivider]}
+                >
+                  <View style={styles.attentionWell}><Icon name="warning" size={18} color={palette.onTertiaryFixedVariant} /></View>
+                  <Text variant="bodyLg" color={palette.onSurface} style={styles.flex}>{item.label}</Text>
+                  <Text variant="titleLg" color={palette.tertiaryFixedDim}>{item.count}</Text>
+                  <Icon name="chevronRight" color={palette.outline} />
+                </AnimatedPressable>
+              ))
+            ) : (
+              <View style={styles.clearRow}><View style={styles.clearWell}><Icon name="present" size={20} color={palette.secondary} /></View><Text variant="bodyMd" color={palette.onSurface}>No setup or processing issues need attention.</Text></View>
+            )}
+          </Card>
         </View>
 
         {/* Today's attendance, stated in words as well as the ring. */}
@@ -380,5 +346,25 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  attentionRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  attentionDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.outlineVariant,
+  },
+  attentionWell: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.tertiaryContainer,
   },
 });

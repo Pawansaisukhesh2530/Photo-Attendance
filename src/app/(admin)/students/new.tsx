@@ -1,10 +1,11 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { isApiError } from '@/api/client';
 import {
   AdminScaffold,
+  AcademicHierarchyFields,
   Button,
   Card,
   Input,
@@ -15,34 +16,44 @@ import {
   useToast,
 } from '@/components';
 import { useInstitutionSettings } from '@/hooks/useSettings';
-import { useCreateStudent } from '@/hooks/useStudents';
+import { useAcademicTree } from '@/hooks/useAcademic';
+import { useCreateStudent, useStudent, useUpdateStudent } from '@/hooks/useStudents';
 import { palette, spacing, useResponsive } from '@/theme';
 
 export default function NewStudentScreen() {
+  const params = useLocalSearchParams<{ studentId?:string; schoolId?:string; departmentId?:string; programId?:string; batchId?:string; sectionId?:string }>();
+  const isEdit = Boolean(params.studentId);
   const { isExpanded } = useResponsive();
-  const { data: settings, isLoading: settingsLoading } = useInstitutionSettings();
+  const { data: settings } = useInstitutionSettings();
+  const academic = useAcademicTree();
   const create = useCreateStudent();
+  const update = useUpdateStudent();
+  const { data:existing } = useStudent(params.studentId);
   const toast = useToast();
 
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [department, setDepartment] = useState('');
+  const [schoolId,setSchoolId]=useState(params.schoolId??'');const [departmentId,setDepartmentId]=useState(params.departmentId??'');const [programId,setProgramId]=useState(params.programId??'');const [batchId,setBatchId]=useState(params.batchId??'');const [sectionId,setSectionId]=useState(params.sectionId??'');
+  const inherited=useMemo(()=>({schoolId:Boolean(params.schoolId),departmentId:Boolean(params.departmentId),programId:Boolean(params.programId),batchId:Boolean(params.batchId),sectionId:Boolean(params.sectionId)}),[params.schoolId,params.departmentId,params.programId,params.batchId,params.sectionId]);
   const [semester, setSemester] = useState('1');
-  const [section, setSection] = useState('');
-  const [departmentPickerOpen, setDepartmentPickerOpen] = useState(false);
   const [semesterPickerOpen, setSemesterPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [seeded,setSeeded]=useState(false);
 
-  const departmentOptions = useMemo(
-    () =>
-      (settings?.departments ?? []).map((value) => ({
-        id: value,
-        label: value,
-        selected: value === department,
-      })),
-    [department, settings?.departments],
-  );
+  if (isEdit && existing && !seeded) {
+    setName(existing.name);
+    setStudentId(existing.studentId);
+    setRollNumber(existing.rollNumber);
+    setSchoolId(existing.schoolId ?? '');
+    setDepartmentId(existing.departmentId ?? '');
+    setProgramId(existing.programId ?? '');
+    setBatchId(existing.batchId ?? '');
+    setSectionId(existing.sectionId ?? '');
+    setSemester(String(existing.semester));
+    setSeeded(true);
+  }
+
 
   const semesterOptions = useMemo(
     () =>
@@ -59,41 +70,43 @@ export default function NewStudentScreen() {
 
   const save = async () => {
     setError(null);
-    if (!name.trim() || !studentId.trim() || !rollNumber.trim() || !department || !section.trim()) {
+    if (!name.trim() || !studentId.trim() || !rollNumber.trim() || !schoolId || !departmentId || !programId || !batchId || !sectionId) {
       setError('Complete every field.');
       return;
     }
 
     try {
-      const student = await create.mutateAsync({
+      const request = {
         name: name.trim(),
-        studentId: studentId.trim(),
-        rollNumber: rollNumber.trim(),
-        department,
+        department: academic.data?.departments.find(x=>x.id===departmentId)?.code??'',
         semester: Number(semester),
-        section: section.trim().toUpperCase(),
-      });
-      toast.show({ message: `${student.name} added`, tone: 'success' });
+        section: academic.data?.sections.find(x=>x.id===sectionId)?.code??'',
+        schoolId,departmentId,programId,batchId,sectionId,
+      };
+      const student = isEdit && existing
+        ? await update.mutateAsync({ ...request, studentId:existing.id, active:existing.active, version:existing.version })
+        : await create.mutateAsync({ ...request, studentId:studentId.trim(), rollNumber:rollNumber.trim() });
+      toast.show({ message: `${student.name} ${isEdit ? 'updated' : 'added'}`, tone: 'success' });
       router.replace({
         pathname: '/(admin)/students/[studentId]',
         params: { studentId: student.id },
       });
     } catch (caught) {
-      setError(isApiError(caught) ? caught.message : 'Could not add student.');
+      setError(isApiError(caught) ? caught.message : `Could not ${isEdit ? 'update' : 'add'} student.`);
     }
   };
 
-  const hasDepartments = departmentOptions.length > 0;
+  const hasHierarchy = (academic.data?.schools.filter(x=>x.active).length??0)>0;
 
   return (
     <AdminScaffold
       active="students"
-      title="Add student"
-      subtitle="Create the student before enrolling face photos"
+      title={isEdit ? 'Edit student' : 'Add student'}
+      subtitle={isEdit ? existing?.name : 'Create the student before enrolling face photos'}
       breadcrumbs={[
         { label: 'Administration', href: '/(admin)/dashboard' },
         { label: 'Students', href: '/(admin)/students' },
-        { label: 'Add student' },
+        { label: isEdit ? 'Edit student' : 'Add student' },
       ]}
       onBack={() => router.back()}
       {...(settings
@@ -123,6 +136,7 @@ export default function NewStudentScreen() {
             onChangeText={setStudentId}
             placeholder="24112515"
             autoCapitalize="characters"
+            editable={!isEdit}
           />
           <View style={styles.gap} />
           <Input
@@ -131,30 +145,15 @@ export default function NewStudentScreen() {
             onChangeText={setRollNumber}
             placeholder="CSE-01"
             autoCapitalize="characters"
+            editable={!isEdit}
           />
         </Card>
 
         <View style={styles.section}>
           <SectionHeader title="Academic details" divider />
           <Card>
-            <View style={styles.field}>
-              <Text variant="labelMd" color={palette.onSurface}>
-                Department
-              </Text>
-              <Button
-                label={department || (settingsLoading ? 'Loading departments…' : 'Select department')}
-                icon="classes"
-                variant="secondary"
-                fullWidth
-                disabled={settingsLoading || !hasDepartments}
-                onPress={() => setDepartmentPickerOpen(true)}
-              />
-              {!settingsLoading && !hasDepartments ? (
-                <Text variant="labelMd" color={palette.error}>
-                  Add a department in Settings before creating students.
-                </Text>
-              ) : null}
-            </View>
+            <AcademicHierarchyFields value={{schoolId,departmentId,programId,batchId,sectionId}} locked={inherited} onChange={value=>{setSchoolId(value.schoolId);setDepartmentId(value.departmentId);setProgramId(value.programId);setBatchId(value.batchId);setSectionId(value.sectionId)}} />
+            {!academic.isLoading&&!hasHierarchy?<Text variant="labelMd" color={palette.error}>Create the academic hierarchy before adding students.</Text>:null}
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurface}>
@@ -169,43 +168,20 @@ export default function NewStudentScreen() {
               />
             </View>
 
-            <Input
-              label="Section"
-              value={section}
-              onChangeText={(value) => setSection(value.toUpperCase())}
-              placeholder="A"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={20}
-              helperText="Section is saved in uppercase for consistent filtering."
-            />
           </Card>
         </View>
 
         <Button
-          label="Add student"
-          icon="add"
+          label={isEdit ? 'Save changes' : 'Add student'}
+          icon={isEdit ? 'check' : 'add'}
           fullWidth
-          loading={create.isPending}
-          disabled={create.isPending || settingsLoading || !hasDepartments}
+          loading={create.isPending || update.isPending}
+          disabled={create.isPending || update.isPending || academic.isLoading || !hasHierarchy}
           onPress={() => void save()}
           style={styles.save}
         />
       </Screen>
 
-      <SelectionSheet
-        visible={departmentPickerOpen}
-        title="Choose department"
-        subtitle="Only departments saved by an administrator are available."
-        options={departmentOptions}
-        onSelect={(value) => {
-          setDepartment(value);
-          setDepartmentPickerOpen(false);
-        }}
-        onClose={() => setDepartmentPickerOpen(false)}
-        searchable
-        emptyMessage="Add a department in Settings first."
-      />
       <SelectionSheet
         visible={semesterPickerOpen}
         title="Choose semester"

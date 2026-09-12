@@ -46,6 +46,8 @@ export interface UpdateTimetableSlotRequest {
 
 export interface TimetableQuery extends PageRequest {
   facultyId?: Id;
+  classId?: Id;
+  sectionId?: Id;
   dayOfWeek?: number;
   slotType?: SlotType;
 }

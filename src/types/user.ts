@@ -30,8 +30,10 @@ export interface Faculty extends User {
   role: 'FACULTY';
   employeeId: string;
   designation: string;
+  departmentId?: Id | null;
   /** Ids of classes assigned to this faculty member for the active session. */
   assignedClassIds: Id[];
+  timetableSlotCount?: number;
   phone: string | null;
 
   /**
@@ -42,6 +44,15 @@ export interface Faculty extends User {
 
   /** Set when the backend records a joining date. Display only. */
   joinedAt?: IsoDateTime | null;
+  schoolId?: Id | null;
+  schoolName?: string | null;
+  taughtAttendance?: {
+    sessions: number;
+    determinedRecords: number;
+    presentRecords: number;
+    percentage: number;
+  };
+  activity?: { id: Id; action: string; createdAt: IsoDateTime; reason: string | null }[];
 }
 
 /* ------------------------------------------------------------------ *
@@ -51,9 +62,12 @@ export interface Faculty extends User {
 export interface FacultyQuery extends PageRequest {
   search?: string;
   department?: string;
+  departmentId?: Id;
+  schoolId?: Id;
   status?: FacultyStatus;
   /** Restricts to faculty assigned to a specific class. */
   classId?: Id;
+  assignedOnly?: boolean;
 }
 
 /**
@@ -69,6 +83,7 @@ export interface CreateFacultyRequest {
   email: string;
   employeeId: string;
   department: string;
+  departmentId: Id;
   designation: string;
   phone?: string | null;
   status?: FacultyStatus;
@@ -80,6 +95,7 @@ export interface UpdateFacultyRequest {
   name?: string;
   email?: string;
   department?: string;
+  departmentId?: Id;
   designation?: string;
   phone?: string | null;
   status?: FacultyStatus;

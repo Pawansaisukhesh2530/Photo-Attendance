@@ -1,6 +1,7 @@
 """Add lookup indexes declared by the academic hierarchy models."""
 
 from alembic import op
+import sqlalchemy as sa
 
 
 revision = "0010_academic_hierarchy_indexes"
@@ -22,8 +23,11 @@ INDEXES = {
 
 def upgrade() -> None:
     for table, columns in INDEXES.items():
+        existing = {item["name"] for item in sa.inspect(op.get_bind()).get_indexes(table)}
         for column in columns:
-            op.create_index(f"ix_{table}_{column}", table, [column], unique=False)
+            name = f"ix_{table}_{column}"
+            if name not in existing:
+                op.create_index(name, table, [column], unique=False)
 
 
 def downgrade() -> None:

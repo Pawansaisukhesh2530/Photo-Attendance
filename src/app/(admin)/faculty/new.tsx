@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { isApiError } from '@/api/client';
 import {
   AdminScaffold,
+  AcademicHierarchyFields,
   Button,
   Card,
   FilterChips,
@@ -21,6 +22,7 @@ import {
   useUpdateFaculty,
 } from '@/hooks/useFacultyAdmin';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { FacultyStatus } from '@/types';
 
@@ -42,6 +44,7 @@ export default function AdminFacultyFormScreen() {
   const toast = useToast();
 
   const { data: settings } = useInstitutionSettings();
+  const academic=useAcademicTree();
   const { data: existing, isLoading: loadingExisting } = useFacultyMember(facultyId);
 
   const create = useCreateFaculty();
@@ -54,11 +57,11 @@ export default function AdminFacultyFormScreen() {
   const [designation, setDesignation] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
+  const [hierarchy,setHierarchy]=useState({schoolId:'',departmentId:'',programId:'',batchId:'',sectionId:''});
   const [status, setStatus] = useState<FacultyStatus>('ACTIVE');
   const [seeded, setSeeded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
-  const [departmentPickerOpen, setDepartmentPickerOpen] = useState(false);
   const [designationPickerOpen, setDesignationPickerOpen] = useState(false);
 
   // Seed once from the loaded record. Guarded by `seeded` so a background refetch cannot overwrite
@@ -70,11 +73,11 @@ export default function AdminFacultyFormScreen() {
     setDesignation(existing.designation);
     setPhone(existing.phone ?? '');
     setDepartment(existing.department ?? '');
+    if(existing.departmentId&&academic.data){const d=academic.data.departments.find(x=>x.id===existing.departmentId);setHierarchy(value=>({...value,schoolId:d?.schoolId??'',departmentId:existing.departmentId??''}))}
     setStatus(existing.status ?? 'ACTIVE');
     setSeeded(true);
   }
 
-  const departmentOptions = useMemo(() => (settings?.departments ?? []).map((d) => ({ id: d, label: d, selected: d === department })), [department, settings]);
   const designationOptions = useMemo(() => (settings?.facultyRoles ?? []).map((d) => ({ id: d, label: d, selected: d === designation })), [designation, settings]);
 
   const submit = useCallback(async () => {
@@ -88,6 +91,7 @@ export default function AdminFacultyFormScreen() {
           name,
           email,
           department,
+          departmentId:hierarchy.departmentId,
           designation,
           phone: phone.trim() || null,
           status,
@@ -99,6 +103,7 @@ export default function AdminFacultyFormScreen() {
           email,
           employeeId,
           department,
+          departmentId:hierarchy.departmentId,
           designation,
           phone: phone.trim() || null,
           status,
@@ -120,6 +125,7 @@ export default function AdminFacultyFormScreen() {
     email,
     employeeId,
     department,
+    hierarchy.departmentId,
     designation,
     phone,
     status,
@@ -212,11 +218,8 @@ export default function AdminFacultyFormScreen() {
               {fieldErrors.designation ? <Text variant="labelMd" color={palette.error}>{fieldErrors.designation}</Text> : null}
             </View>
 
-            <View style={styles.field}>
-              <Text variant="labelMd" color={palette.onSurface}>Department</Text>
-              <Button label={department || 'Select department'} variant="secondary" fullWidth onPress={() => setDepartmentPickerOpen(true)} />
-              {fieldErrors.department ? <Text variant="labelMd" color={palette.error}>{fieldErrors.department}</Text> : null}
-            </View>
+            <AcademicHierarchyFields through="departments" value={hierarchy} onChange={value=>{setHierarchy(value);setDepartment(academic.data?.departments.find(x=>x.id===value.departmentId)?.code??'')}} />
+            {fieldErrors.department ? <Text variant="labelMd" color={palette.error}>{fieldErrors.department}</Text> : null}
 
             <View style={styles.field}>
               <Text variant="labelMd" color={palette.onSurfaceVariant} style={styles.fieldLabel}>
@@ -257,7 +260,6 @@ export default function AdminFacultyFormScreen() {
           />
         </View>
       </Screen>
-      <SelectionSheet visible={departmentPickerOpen} title="Choose department" options={departmentOptions} onSelect={(value) => { setDepartment(value); setDepartmentPickerOpen(false); }} onClose={() => setDepartmentPickerOpen(false)} searchable />
       <SelectionSheet visible={designationPickerOpen} title="Choose role / designation" options={designationOptions} onSelect={(value) => { setDesignation(value); setDesignationPickerOpen(false); }} onClose={() => setDesignationPickerOpen(false)} searchable />
     </AdminScaffold>
   );

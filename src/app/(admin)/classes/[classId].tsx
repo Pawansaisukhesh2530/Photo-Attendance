@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   ClassCodeTag,
+  ConfirmationModal,
   EmptyState,
   ErrorState,
   FacultyStatusBadge,
@@ -26,7 +27,8 @@ import {
   useToast,
 } from '@/components';
 import { useAttendanceHistory } from '@/hooks/useAttendance';
-import { useAssignFaculty, useUpdateEnrolment } from '@/hooks/useClassAdmin';
+import { useAcademicTree } from '@/hooks/useAcademic';
+import { useAssignFaculty, useUpdateClass, useUpdateEnrolment } from '@/hooks/useClassAdmin';
 import { useClass } from '@/hooks/useClasses';
 import { useInfiniteFaculty } from '@/hooks/useFacultyAdmin';
 import { useInstitutionSettings } from '@/hooks/useSettings';
@@ -37,6 +39,7 @@ import type { AttendanceSessionSummary, Faculty, Student } from '@/types';
 /** Rows previewed before deferring to a fuller list. */
 const ROSTER_PREVIEW = 8;
 const SESSION_PREVIEW = 5;
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
  * Class detail, admin side.
@@ -55,24 +58,27 @@ export default function AdminClassDetailScreen() {
   const toast = useToast();
 
   const { data: settings } = useInstitutionSettings();
+  const { data: academic } = useAcademicTree();
   const { data: course, isLoading, isRefetching, error, refetch } = useClass(classId);
 
   const roster = useStudents(classId ? { classId, pageSize: 100 } : undefined);
-  const studentDirectory = useStudents({ pageSize: 100 });
+  const studentDirectory = useStudents(course?.sectionId ? { sectionId:course.sectionId, pageSize:100 } : undefined);
   const history = useAttendanceHistory(classId ? { classId } : undefined);
 
   // Active members only: an inactive lecturer cannot be assigned, so offering them would be a dead
   // end the service would reject.
-  const { data: facultyPages } = useInfiniteFaculty({ status: 'ACTIVE', pageSize: 100 });
+  const { data: facultyPages } = useInfiniteFaculty({ status:'ACTIVE', pageSize:100, ...(course?.departmentId ? { departmentId:course.departmentId } : {}) });
   const assignable = useMemo(
     () => (facultyPages?.pages ?? []).flatMap((p) => p.items),
     [facultyPages],
   );
 
   const assign = useAssignFaculty();
+  const updateClass = useUpdateClass();
   const updateEnrolment = useUpdateEnrolment();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [confirmArchive,setConfirmArchive]=useState(false);
 
   const students = useMemo(() => roster.data?.items ?? [], [roster.data?.items]);
   const enrolledIds = useMemo(() => new Set(students.map((student) => student.id)), [students]);
@@ -83,6 +89,16 @@ export default function AdminClassDetailScreen() {
   const totalStudents = roster.data?.total ?? course?.studentCount ?? 0;
   const sessions = history.data ?? [];
   const threshold = settings?.attendanceThreshold;
+  const academicPath=useMemo(()=>{
+    if(!course||!academic) return course?.department ?? 'Academic placement not set';
+    return [
+      academic.schools.find(item=>item.id===course.schoolId)?.code,
+      academic.departments.find(item=>item.id===course.departmentId)?.code,
+      academic.programs.find(item=>item.id===course.programId)?.code,
+      academic.batches.find(item=>item.id===course.batchId)?.name,
+      academic.sections.find(item=>item.id===course.sectionId)?.code,
+    ].filter(Boolean).join(' · ') || course.department || 'Academic placement not set';
+  },[academic,course]);
 
   const currentHolder = useMemo(
     () => assignable.find((f) => f.id === course?.facultyId),
@@ -227,7 +243,7 @@ export default function AdminClassDetailScreen() {
                   ) : null}
                 </View>
                 <Text variant="bodyMd" color={palette.onSurfaceVariant}>
-                  {course.department ?? 'No department'}
+                  {academicPath}
                 </Text>
                 <Text variant="labelMd" color={palette.outline}>
                   {course.academicSession} · Semester {course.semester} · Section {course.section}
@@ -242,6 +258,25 @@ export default function AdminClassDetailScreen() {
                 ) : null}
               </View>
             </View>
+            <Button label={(course.status ?? 'ACTIVE') === 'ARCHIVED' ? 'Restore class' : 'Archive class'} variant="ghost" icon={(course.status ?? 'ACTIVE') === 'ARCHIVED' ? 'retake' : 'delete'} loading={updateClass.isPending} onPress={() => (course.status ?? 'ACTIVE') === 'ARCHIVED' ? void updateClass.mutateAsync({classId:course.id,status:'ACTIVE'}).then(()=>toast.show({message:'Class restored',tone:'success'})) : setConfirmArchive(true)} />
+          </Card>
+        </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Setup readiness" divider />
+          <Card padded={false}>
+            {[
+              {label:'Academic placement',ready:Boolean(course.sectionId&&course.programSubjectId)},
+              {label:'Active lecturer assigned',ready:Boolean(course.facultyId)},
+              {label:'Timetable configured',ready:course.schedule.length>0},
+              {label:'Students enrolled',ready:totalStudents>0},
+            ].map((item,index,array)=>(
+              <View key={item.label} style={[styles.readinessRow,index<array.length-1&&styles.scheduleDivider]}>
+                <Icon name={item.ready?'present':'warning'} size={18} color={item.ready?palette.secondary:palette.onTertiaryFixedVariant} />
+                <Text variant="bodyMd" color={palette.onSurface} style={styles.flex}>{item.label}</Text>
+                <Text variant="labelMd" color={item.ready?palette.secondary:palette.onTertiaryFixedVariant}>{item.ready?'Ready':'Action needed'}</Text>
+              </View>
+            ))}
           </Card>
         </View>
 
@@ -309,6 +344,13 @@ export default function AdminClassDetailScreen() {
                 />
               ) : null}
             </View>
+          </Card>
+        </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Timetable" meta={`${course.schedule.length} ${course.schedule.length === 1 ? 'slot' : 'slots'}`} actionLabel="Manage" onAction={() => router.push({ pathname:'/(admin)/timetable', params:{ classId:course.id, ...(course.sectionId ? { sectionId:course.sectionId } : {}) } })} divider />
+          <Card padded={false}>
+            {course.schedule.length ? course.schedule.map((slot,index) => <View key={`${slot.dayOfWeek}-${slot.startTime}-${slot.room}`} style={[styles.scheduleRow,index<course.schedule.length-1&&styles.scheduleDivider]}><View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{DAYS[slot.dayOfWeek] ?? `Day ${slot.dayOfWeek}`}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{slot.startTime} – {slot.endTime}</Text></View><Text color={palette.onSurfaceVariant}>{slot.room || 'Room not set'}</Text></View>) : <EmptyState icon="calendar" title="No timetable" message="Add a timetable slot before this class begins teaching." />}
           </Card>
         </View>
 
@@ -412,6 +454,41 @@ export default function AdminClassDetailScreen() {
             </Card>
           )}
         </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Activity" divider />
+          <Card padded={false} style={styles.activityCard}>
+            {(course.activity ?? []).length === 0 ? (
+              <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.activityEmpty}>
+                No class activity has been recorded yet.
+              </Text>
+            ) : (
+              (course.activity ?? []).map((entry, index, activity) => (
+                <View
+                  key={entry.id}
+                  style={[styles.activityRow, index < activity.length - 1 && styles.scheduleDivider]}
+                >
+                  <View style={styles.activityIcon}>
+                    <Icon name="audit" size={16} color={palette.primary} />
+                  </View>
+                  <View style={styles.flex}>
+                    <Text variant="bodyMd" color={palette.onSurface}>
+                      {entry.action.replaceAll('_', ' ')}
+                    </Text>
+                    <Text variant="labelMd" color={palette.outline}>
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </Text>
+                    {entry.reason ? (
+                      <Text variant="labelMd" color={palette.onSurfaceVariant}>
+                        {entry.reason}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))
+            )}
+          </Card>
+        </View>
       </Screen>
 
       {/*
@@ -441,6 +518,7 @@ export default function AdminClassDetailScreen() {
           searchText: `${member.employeeId} ${member.department ?? ''}`,
         }))}
       />
+      <ConfirmationModal visible={confirmArchive} tone="warning" icon="delete" title="Archive class?" message="The class will leave active lists. Its roster, timetable, attendance history, and audit trail will remain available." confirmLabel="Archive" confirmLoading={updateClass.isPending} onCancel={() => setConfirmArchive(false)} onConfirm={() => void updateClass.mutateAsync({classId:course.id,status:'ARCHIVED'}).then(()=>{setConfirmArchive(false);toast.show({message:'Class archived',tone:'success'});})} />
       <SelectionSheet
         visible={studentPickerOpen}
         title="Add student to class"
@@ -481,6 +559,23 @@ const styles = StyleSheet.create({
   },
   rosterAction: {
     marginBottom: spacing.sm,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  readinessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  scheduleDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.outlineVariant,
   },
   summaryTop: {
     flexDirection: 'row',
@@ -528,6 +623,27 @@ const styles = StyleSheet.create({
   holderActions: {
     gap: spacing.sm,
     marginTop: spacing.md,
+  },
+  activityCard: {
+    paddingHorizontal: spacing.md,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.primaryFixed,
+  },
+  activityEmpty: {
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
   },
   sheetEmpty: {
     paddingHorizontal: spacing.md,

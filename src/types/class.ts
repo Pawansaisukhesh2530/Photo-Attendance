@@ -56,6 +56,13 @@ export interface CourseClass {
    * them, so a department column would be the same value on every row.
    */
   department?: string;
+  departmentId?: Id;
+  schoolId?: Id;
+  programId?: Id;
+  batchId?: Id;
+  programSubjectId?: Id | null;
+  sectionId?: Id | null;
+  activity?: { id: Id; action: string; createdAt: IsoDateTime; reason: string | null }[];
 
   /** Defaults to ACTIVE when absent. */
   status?: ClassStatus;
@@ -90,9 +97,17 @@ export interface ClassQuery extends PageRequest {
   semester?: number;
   search?: string;
   department?: string;
+  schoolId?: Id;
+  departmentId?: Id;
+  programId?: Id;
+  batchId?: Id;
+  programSubjectId?: Id;
+  sectionId?: Id;
   status?: ClassStatus;
   /** When true, classes with no faculty assigned. Drives the admin "needs a lecturer" filter. */
   unassignedOnly?: boolean;
+  unscheduledOnly?: boolean;
+  emptyRosterOnly?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -114,6 +129,8 @@ export interface CreateClassRequest {
   semester: number;
   department: string;
   academicSession: string;
+  programSubjectId: Id;
+  sectionId: Id;
   /** Optional at creation: a class may be scheduled before a lecturer is assigned. */
   facultyId?: Id | null;
   schedule?: ClassSchedule[];
@@ -129,6 +146,8 @@ export interface UpdateClassRequest {
   semester?: number;
   department?: string;
   academicSession?: string;
+  programSubjectId?: Id;
+  sectionId?: Id;
   status?: ClassStatus;
   schedule?: ClassSchedule[];
 }

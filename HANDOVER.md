@@ -6,13 +6,15 @@ EduTrace Pro is an Expo/React Native attendance application backed by FastAPI an
 
 The local recognition backend uses InsightFace `buffalo_l`: SCRFD-10GF detects and aligns faces, and its ResNet50 ArcFace model produces normalized 512-dimensional embeddings. It accepts JPEG, PNG, and HEIC/HEIF phone images. Large classroom images are processed as a full image plus overlapping tiles, and boxes are mapped back to original coordinates for result overlays.
 
-Last validation performed on September 6, 2026:
+Last validation performed on September 12, 2026:
 
 - `npm run typecheck` passed.
 - `npm run lint` passed.
-- Backend test suite passed: 19 tests.
+- Backend test suite passed: 34 tests.
+- `npx expo-doctor` passed all 21 checks.
 - PostgreSQL readiness returned `{"status":"ready","database":"ok"}`.
-- A 4284 × 5712 HEIC classroom photo was stored, processed, and returned six numbered face detections.
+- Browser smoke tests passed for Dashboard, Academic Structure, Curriculum, Students, Faculty, Classes, Timetable, Attendance, Reports, and Settings with no error overlay.
+- The class workspace displayed its normalized academic path, readiness checks, lecturer, 20-student roster, and seven attendance sessions from PostgreSQL.
 
 ## Repository layout
 
@@ -147,7 +149,7 @@ Run `git diff --check` before committing. Do not commit root/backend `.env` file
 
 During the latest local test, the classroom photo contained six detectable faces. All six remained unmatched because the roster had insufficient usable face enrollment data. One student had four saved photos, but only one was accepted: the other images contained two faces, no detectable face, or excessive blur. Uploading at least two more accepted single-person portraits is required before treating recognition results as meaningful.
 
-The beta similarity threshold is `0.50`. Enrollment uses a conservative blur-variance floor of `15`, brightness and exactly-one-face checks, and rejects severe side profiles. Automatic matching requires at least one accepted enrolment image and skips classroom faces smaller than 32 pixels. InsightFace aligns and crops eligible faces from five landmarks before ArcFace embedding. Calibrate quality and match thresholds with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
+The standard similarity threshold is `0.50` (overridable through `EDUTRACE_MATCH_THRESHOLD` for a validated deployment). Enrollment uses a conservative blur-variance floor of `15`, brightness and exactly-one-face checks, and rejects severe side profiles. Automatic matching requires at least one accepted enrolment image and skips classroom faces smaller than 32 pixels. InsightFace aligns and crops eligible faces from five landmarks before ArcFace embedding. Calibrate quality and match thresholds with a separate, consented validation dataset before production use. Keep manual review available for uncertain or unmatched results.
 
 ## Production work still required
 
@@ -158,3 +160,14 @@ The beta similarity threshold is `0.50`. Enrollment uses a conservative blur-var
 - Add TLS, backups, monitoring, retention rules, and role-specific operational controls.
 - Validate recognition accuracy, demographic performance, thresholds, and model licensing with an approved dataset.
 - Build a development client if native panorama or other custom native-camera functionality is introduced beyond Expo Go capabilities.
+# Academic structure migration status
+
+Revision `0011_academic_refs` adds nullable academic foreign keys and persisted student mapping state. All 21 existing students explicitly reference School of Sciences → Computer Science → BCA. The backend blocks enrolment of unmapped students and validates every hierarchy path.
+
+After explicit administrator mapping, 20 students are fully mapped to School of Sciences → Computer Science → BCA → Batch - 1 → Section A. `TEST-S001` remains `NEEDS_MAPPING`: its programme is BCA, while batch and section remain nullable because those values were not explicitly supplied. Its legacy CSE / Semester 5 / A values are preserved and are not used as inferred foreign keys. Run `python scripts/export_mapping_report.py` from `backend` for the current reconciliation report.
+
+Revision `0012_class_types` adds Settings-managed class types. Class creation and editing validate those values server-side. The current database is authoritative and contains 21 students, one class with 20 enrolments, seven attendance sessions, and their protected attendance, recognition, face-enrolment, and audit records. Deleted historical data must not be reconstructed unless a backup is separately inspected and approved. The legacy academic text fields remain in the API and database for additive compatibility.
+
+Revision `0013_academic_settings` persists the institution academic-session label and semester count. Settings now controls both values, and new class forms consume them instead of deriving them from the computer's current year.
+
+The admin application now exposes grouped navigation, nine hierarchy/people/teaching dashboard metrics, exact attention links, complete hierarchy CRUD with safe archive impact checks, reusable curriculum assignments, explicit student placement, hierarchy-scoped faculty/classes/timetable/attendance/reports, a reviewed Class → Faculty → Roster → Timetable creation flow, class setup readiness, faculty/class activity, and exports for the current report scope in CSV, XLSX, PDF, and JSON. Faculty assignment is optional during class setup when no lecturer has been mapped to the selected Department; the class workspace and Dashboard then surface the missing assignment. Report exports preserve the selected Subject filter, and query-cache identities include every hierarchy filter so switching context cannot reuse another scope's results.

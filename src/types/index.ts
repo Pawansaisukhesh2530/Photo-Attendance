@@ -26,6 +26,7 @@ export type {
 
 export type {
   CreateStudentRequest,
+  UpdateStudentRequest,
   FaceImageInfo,
   Student,
   StudentAttendanceEntry,
@@ -105,3 +106,25 @@ export type {
 } from './timetable';
 
 export { DAY_LABELS, DAY_SHORT } from './timetable';
+
+export type {
+  AcademicActivity,
+  AcademicAttentionItem,
+  AcademicCounts,
+  AcademicCreateRequest,
+  AcademicKind,
+  AcademicOverview,
+  AcademicPathItem,
+  AcademicQuery,
+  AcademicRecord,
+  AcademicTree,
+  AcademicUpdateRequest,
+  AcademicWorkspace,
+  ArchiveImpact,
+  CurriculumWorkspaceItem,
+  MappingReport,
+  MappingReportItem,
+  ProgramSubject,
+  StudentAcademicMapping,
+  SubjectSuggestion,
+} from './academic';

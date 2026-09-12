@@ -8,8 +8,15 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .domain import audit, ensure_version, faculty_for_user, page
 from .errors import Problem
-from .models import (CourseClass, Faculty, FacultyClassAssignment, Role, SlotType,
-                     TimetableSlot, User)
+from .models import (
+    CourseClass,
+    Faculty,
+    FacultyClassAssignment,
+    Role,
+    SlotType,
+    TimetableSlot,
+    User,
+)
 from .schemas import TimetableSlotIn, TimetableSlotPatch
 from .security import require_roles
 
@@ -51,7 +58,8 @@ def _slot_json(slot: TimetableSlot, course: CourseClass | None = None) -> dict:
 
 
 def _check_overlap(db: Session, faculty_id: str, day_of_week: int,
-                   start_time: time, end_time: time, exclude_id: str | None = None):
+                   start_time: time, end_time: time, class_id: str | None = None,
+                   room: str | None = None, exclude_id: str | None = None):
     q = select(TimetableSlot).where(
         TimetableSlot.faculty_id == faculty_id,
         TimetableSlot.day_of_week == day_of_week,
@@ -63,6 +71,33 @@ def _check_overlap(db: Session, faculty_id: str, day_of_week: int,
     if db.scalar(q):
         raise Problem(409, "Schedule overlap",
                       "This time slot overlaps with an existing slot for this faculty member.")
+    if class_id:
+        course = db.get(CourseClass, class_id)
+        class_overlap = select(TimetableSlot).join(
+            CourseClass, TimetableSlot.class_id == CourseClass.id
+        ).where(
+            TimetableSlot.day_of_week == day_of_week,
+            TimetableSlot.start_time < end_time,
+            start_time < TimetableSlot.end_time,
+            CourseClass.section_id == course.section_id,
+        )
+        if exclude_id:
+            class_overlap = class_overlap.where(TimetableSlot.id != exclude_id)
+        if course.section_id and db.scalar(class_overlap):
+            raise Problem(409, "Section schedule overlap",
+                          "Students in this section already have a class during this time.")
+    if room and room.strip():
+        room_overlap = select(TimetableSlot).where(
+            TimetableSlot.day_of_week == day_of_week,
+            TimetableSlot.start_time < end_time,
+            start_time < TimetableSlot.end_time,
+            TimetableSlot.room.ilike(room.strip()),
+        )
+        if exclude_id:
+            room_overlap = room_overlap.where(TimetableSlot.id != exclude_id)
+        if db.scalar(room_overlap):
+            raise Problem(409, "Room schedule overlap",
+                          "This room is already in use during the selected time.")
 
 
 @router.post("/admin/timetable/slots", status_code=201)
@@ -81,7 +116,8 @@ def create_slot(payload: TimetableSlotIn, db: Session = Depends(get_db),
                           "This faculty member is not assigned to teach this class.")
 
     _check_overlap(db, payload.faculty_id, payload.day_of_week,
-                   payload.start_time, payload.end_time)
+                   payload.start_time, payload.end_time,
+                   payload.class_id, payload.room)
 
     slot = TimetableSlot(**payload.model_dump())
     db.add(slot)
@@ -100,6 +136,8 @@ def create_slot(payload: TimetableSlotIn, db: Session = Depends(get_db),
 
 @router.get("/admin/timetable")
 def list_admin_slots(faculty_id: str | None = Query(None, alias="facultyId"),
+                     class_id: str | None = Query(None, alias="classId"),
+                     section_id: str | None = Query(None, alias="sectionId"),
                      day_of_week: int | None = Query(None, alias="dayOfWeek"),
                      slot_type: SlotType | None = Query(None, alias="slotType"),
                      page_number: int = Query(1, alias="page"),
@@ -109,6 +147,12 @@ def list_admin_slots(faculty_id: str | None = Query(None, alias="facultyId"),
     q = select(TimetableSlot).order_by(TimetableSlot.day_of_week, TimetableSlot.start_time)
     if faculty_id:
         q = q.where(TimetableSlot.faculty_id == faculty_id)
+    if class_id:
+        q = q.where(TimetableSlot.class_id == class_id)
+    if section_id:
+        q = q.join(CourseClass, TimetableSlot.class_id == CourseClass.id).where(
+            CourseClass.section_id == section_id
+        )
     if day_of_week is not None:
         q = q.where(TimetableSlot.day_of_week == day_of_week)
     if slot_type:
@@ -184,7 +228,8 @@ def patch_slot(slot_id: str, payload: TimetableSlotPatch,
         setattr(slot, k, v)
 
     _check_overlap(db, slot.faculty_id, slot.day_of_week,
-                   slot.start_time, slot.end_time, exclude_id=slot.id)
+                   slot.start_time, slot.end_time, slot.class_id, slot.room,
+                   exclude_id=slot.id)
 
     slot.version += 1
     try:

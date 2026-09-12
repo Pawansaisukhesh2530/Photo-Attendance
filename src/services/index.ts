@@ -9,6 +9,7 @@ import { reportsApi } from '@/api/reports';
 import { settingsApi } from '@/api/settings';
 import { studentsApi } from '@/api/students';
 import { timetableApi } from '@/api/timetable';
+import { academicApi } from '@/api/academic';
 
 import type {
   AttendanceService,
@@ -20,6 +21,7 @@ import type {
   SettingsService,
   StudentService,
   TimetableService,
+  AcademicService,
 } from './contracts';
 
 export const authService: AuthService = authApi;
@@ -31,6 +33,7 @@ export const auditService: AuditService = auditApi;
 export const facultyService: FacultyService = facultyApi;
 export const settingsService: SettingsService = settingsApi;
 export const timetableService: TimetableService = timetableApi;
+export const academicService: AcademicService = academicApi;
 
 export type {
   AttendanceService,
@@ -42,4 +45,5 @@ export type {
   SettingsService,
   StudentService,
   TimetableService,
+  AcademicService,
 } from './contracts';

@@ -12,6 +12,7 @@ import {
   FilterChips,
   Icon,
   SearchField,
+  StudentMappingPanel,
   StudentRosterRow,
   Text,
   type DataColumn,
@@ -20,6 +21,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { useInfiniteStudents } from '@/hooks/useStudents';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { Student } from '@/types';
@@ -42,9 +44,10 @@ type DeptFilter = 'ALL' | string;
  * cannot leave the scope stale.
  */
 export default function AdminStudentsScreen() {
-  const params = useLocalSearchParams<{ q?: string; sem?: string; dept?: string; low?: string }>();
+  const params = useLocalSearchParams<{ q?: string; sem?: string; dept?: string; low?: string; schoolId?: string; departmentId?: string; programId?: string; batchId?: string; sectionId?: string; mappingStatus?: string }>();
   const { isExpanded, screenPadding } = useResponsive();
   const { data: settings } = useInstitutionSettings();
+  const academic=useAcademicTree();
 
   const search = params.q ?? '';
   const semester: SemesterFilter = params.sem && params.sem.length > 0 ? params.sem : 'ALL';
@@ -62,10 +65,16 @@ export default function AdminStudentsScreen() {
     () => ({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(semester !== 'ALL' ? { semester: Number(semester) } : {}),
-      ...(department !== 'ALL' ? { department } : {}),
+      ...(department !== 'ALL' ? { departmentId:department } : {}),
       ...(lowOnly ? { lowAttendanceOnly: true } : {}),
+      ...(params.schoolId ? { schoolId: params.schoolId } : {}),
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params.programId ? { programId: params.programId } : {}),
+      ...(params.batchId ? { batchId: params.batchId } : {}),
+      ...(params.sectionId ? { sectionId: params.sectionId } : {}),
+      ...(params.mappingStatus === 'NEEDS_MAPPING' ? { mappingStatus: 'NEEDS_MAPPING' as const } : {}),
     }),
-    [debouncedSearch, semester, department, lowOnly],
+    [debouncedSearch, semester, department, lowOnly, params.schoolId, params.departmentId, params.programId, params.batchId, params.sectionId, params.mappingStatus],
   );
 
   const {
@@ -96,9 +105,10 @@ export default function AdminStudentsScreen() {
   }, []);
 
   const hasFilters =
-    search.trim().length > 0 || semester !== 'ALL' || department !== 'ALL' || lowOnly;
+    search.trim().length > 0 || semester !== 'ALL' || department !== 'ALL' || lowOnly ||
+    Boolean(params.schoolId || params.departmentId || params.programId || params.batchId || params.sectionId || params.mappingStatus);
   const clearFilters = useCallback(() => {
-    router.setParams({ q: '', sem: '', dept: '', low: '' });
+    router.setParams({ q: '', sem: '', dept: '', low: '', schoolId: '', departmentId: '', programId: '', batchId: '', sectionId: '', mappingStatus: '' });
   }, []);
 
   const semesterOptions = useMemo<FilterChipOption<SemesterFilter>[]>(() => {
@@ -115,13 +125,25 @@ export default function AdminStudentsScreen() {
   const deptOptions = useMemo<FilterChipOption<DeptFilter>[]>(
     () => [
       { value: 'ALL', label: 'All departments' },
-      ...(settings?.departments ?? []).map((d) => ({
-        value: d,
-        label: d.split(' ').map((w) => w[0]).join('').toUpperCase(),
+      ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
+        value: d.id,
+        label: d.code,
       })),
     ],
-    [settings],
+    [academic.data],
   );
+
+  const academicPath = useCallback((row: Student) => {
+    if (row.mappingStatus === 'NEEDS_MAPPING') return `Needs mapping · ${row.department} · Sem ${row.semester} · ${row.section}`;
+    const tree=academic.data;
+    if(!tree) return row.department;
+    const school=tree.schools.find(item=>item.id===row.schoolId)?.code;
+    const departmentCode=tree.departments.find(item=>item.id===row.departmentId)?.code;
+    const program=tree.programs.find(item=>item.id===row.programId)?.code;
+    const batch=tree.batches.find(item=>item.id===row.batchId)?.name;
+    const section=tree.sections.find(item=>item.id===row.sectionId)?.code;
+    return [school,departmentCode,program,batch,section].filter(Boolean).join(' · ') || row.department;
+  },[academic.data]);
 
   const columns = useMemo<DataColumn<Student>[]>(
     () => [
@@ -154,23 +176,13 @@ export default function AdminStudentsScreen() {
         ),
       },
       {
-        key: 'department',
-        header: 'Department',
-        flex: 2.2,
+        key: 'academicPath',
+        header: 'Academic placement',
+        flex: 3,
         minWidth: 1180,
         render: (row) => (
           <Text variant="bodyMd" color={palette.onSurfaceVariant} numberOfLines={2}>
-            {row.department}
-          </Text>
-        ),
-      },
-      {
-        key: 'semester',
-        header: 'Sem / Sec',
-        flex: 1.1,
-        render: (row) => (
-          <Text variant="bodyMd" color={palette.onSurfaceVariant}>
-            {row.semester} / {row.section}
+            {academicPath(row)}
           </Text>
         ),
       },
@@ -192,6 +204,18 @@ export default function AdminStudentsScreen() {
           ) : (
             <Badge label="Not enrolled" icon="unknown" />
           ),
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        flex: 1.1,
+        minWidth: 1420,
+        render: (row) => (
+          <Badge
+            label={row.active ? 'Active' : 'Inactive'}
+            icon={row.active ? 'present' : 'unknown'}
+          />
+        ),
       },
       {
         key: 'attendance',
@@ -216,7 +240,7 @@ export default function AdminStudentsScreen() {
         },
       },
     ],
-    [threshold],
+    [academicPath, threshold],
   );
 
   return (
@@ -230,7 +254,7 @@ export default function AdminStudentsScreen() {
         ? { institutionName: settings.institutionName, institutionCode: settings.institutionCode }
         : {})}
     >
-      <AdminPagedList<Student>
+      {params.mappingStatus === 'NEEDS_MAPPING' ? <StudentMappingPanel /> : <AdminPagedList<Student>
         rows={rows}
         total={total}
         pageSize={pageSize}
@@ -309,7 +333,7 @@ export default function AdminStudentsScreen() {
             ) : null}
           </>
         }
-      />
+      />}
     </AdminScaffold>
   );
 }

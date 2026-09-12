@@ -54,23 +54,23 @@ export default function AdminLayout() {
           }}
         />
         <Tabs.Screen
-          name="faculty"
+          name="academic-structure"
           options={{
-            title: 'Faculty',
-            tabBarIcon: ({ color }) => <Icon name="faculty" size={22} color={color} />,
+            title: 'Academics',
+            tabBarIcon: ({ color }) => <Icon name="institution" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="students"
+          name="people"
           options={{
-            title: 'Students',
+            title: 'People',
             tabBarIcon: ({ color }) => <Icon name="students" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="classes"
+          name="teaching"
           options={{
-            title: 'Classes',
+            title: 'Teaching',
             tabBarIcon: ({ color }) => <Icon name="classes" size={22} color={color} />,
           }}
         />
@@ -87,11 +87,14 @@ export default function AdminLayout() {
           phone these are reached through More; on desktop, directly from the sidebar.
         */}
         <Tabs.Screen name="attendance" options={{ href: null }} />
+        <Tabs.Screen name="faculty" options={{ href: null }} />
+        <Tabs.Screen name="students" options={{ href: null }} />
+        <Tabs.Screen name="classes" options={{ href: null }} />
         <Tabs.Screen name="reports" options={{ href: null }} />
         <Tabs.Screen name="audit" options={{ href: null }} />
         <Tabs.Screen name="settings" options={{ href: null }} />
         <Tabs.Screen name="timetable" options={{ href: null }} />
-        <Tabs.Screen name="academic-structure" options={{ href: null }} />
+        <Tabs.Screen name="curriculum" options={{ href: null }} />
       </Tabs>
     </AuthGuard>
   );

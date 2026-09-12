@@ -11,7 +11,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { studentService } from '@/services';
 import { queryKeys } from '@/store/queryClient';
-import type { CreateStudentRequest, Paginated, Student, StudentProfile, StudentQuery } from '@/types';
+import type { CreateStudentRequest, Paginated, Student, StudentAcademicMapping, StudentProfile, StudentQuery, UpdateStudentRequest } from '@/types';
 
 /**
  * A single page of students.
@@ -74,3 +74,17 @@ export function useCreateStudent() {
     },
   });
 }
+
+export function useUpdateStudent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateStudentRequest) => studentService.updateStudent(payload),
+    onSuccess: (student) => {
+      void client.invalidateQueries({ queryKey: queryKeys.students.all });
+      void client.invalidateQueries({ queryKey: queryKeys.students.detail(student.id) });
+      void client.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useMapStudentAcademic(){const client=useQueryClient();return useMutation({mutationFn:(p:{studentId:string;mapping:StudentAcademicMapping;version:number})=>studentService.mapAcademic(p.studentId,p.mapping,p.version),onSuccess:()=>{void client.invalidateQueries({queryKey:queryKeys.students.all});void client.invalidateQueries({queryKey:['academic']});void client.invalidateQueries({queryKey:queryKeys.audit.all})}})}

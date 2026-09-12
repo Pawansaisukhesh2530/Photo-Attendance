@@ -32,6 +32,7 @@ import type {
   InstitutionSettings,
   LoginRequest,
   Paginated,
+  PageRequest,
   PanoramaPreview,
   PreparePanoramaRequest,
   TimetableQuery,
@@ -47,6 +48,7 @@ import type {
   ResolveTwinReviewRequest,
   Student,
   CreateStudentRequest,
+  UpdateStudentRequest,
   FaceImageInfo,
   StudentAttendanceStat,
   StudentProfile,
@@ -55,6 +57,19 @@ import type {
   TwinReview,
   UpdateAttendanceRequest,
   User,
+  AcademicCreateRequest,
+  AcademicKind,
+  AcademicQuery,
+  AcademicRecord,
+  AcademicTree,
+  AcademicUpdateRequest,
+  AcademicOverview,
+  AcademicWorkspace,
+  ArchiveImpact,
+  MappingReport,
+  ProgramSubject,
+  SubjectSuggestion,
+  StudentAcademicMapping,
 } from '@/types';
 
 export interface AuthService {
@@ -161,8 +176,10 @@ export interface StudentService {
   getStudents(query?: StudentQuery): Promise<Paginated<Student>>;
   getStudent(studentId: Id): Promise<StudentProfile>;
   createStudent(request:CreateStudentRequest):Promise<Student>;
+  updateStudent(request:UpdateStudentRequest):Promise<StudentProfile>;
   getFaceImages(studentId:Id):Promise<FaceImageInfo[]>;
   uploadFaceImages(studentId:Id,uris:string[]):Promise<void>;
+  mapAcademic(studentId:Id,mapping:StudentAcademicMapping,version:number):Promise<StudentProfile>;
   revokeFaceImage(studentId:Id,imageId:Id):Promise<void>;
   reprocessFaceImages(studentId:Id):Promise<void>;
 }
@@ -255,8 +272,14 @@ export interface ReportService {
    * the trend and class breakdown on every page. Splitting them also lets the roll page
    * independently while the summary above it stays put.
    */
-  getStudentStats(query?: ReportStudentQuery): Promise<Paginated<StudentAttendanceStat>>;
-}
+    getStudentStats(query?: ReportStudentQuery): Promise<Paginated<StudentAttendanceStat>>;
+
+    /** Download every student in the current report scope; this is never paged. */
+    downloadReport(
+      query: ReportStudentQuery | undefined,
+      format: 'csv' | 'xlsx' | 'pdf' | 'json',
+    ): Promise<void>;
+  }
 
 /**
  * Audit log. Read-only, on both methods, permanently.
@@ -294,4 +317,19 @@ export interface TimetableService {
   createSlot(request: CreateTimetableSlotRequest): Promise<TimetableSlot>;
   updateSlot(request: UpdateTimetableSlotRequest): Promise<TimetableSlot>;
   deleteSlot(slotId: Id): Promise<void>;
+}
+
+export interface AcademicService {
+  getTree(includeArchived?:boolean): Promise<AcademicTree>;
+  getLevel(kind:AcademicKind, query?:AcademicQuery): Promise<Paginated<AcademicRecord>>;
+  getOverview():Promise<AcademicOverview>;
+  getWorkspace(kind:AcademicKind,id:Id):Promise<AcademicWorkspace>;
+  getArchiveImpact(kind:AcademicKind,id:Id):Promise<ArchiveImpact>;
+  getSubjectSuggestions(query:{code?:string;name?:string}):Promise<SubjectSuggestion[]>;
+  create(request:AcademicCreateRequest):Promise<AcademicRecord>;
+  update(request:AcademicUpdateRequest):Promise<AcademicRecord>;
+  archive(kind:AcademicKind,id:Id):Promise<void>;
+  linkSubject(programId:Id,subjectId:Id,semesterNumber?:number):Promise<ProgramSubject>;
+  unlinkSubject(programId:Id,subjectId:Id):Promise<void>;
+  getMappingReport(query?:PageRequest&{search?:string}):Promise<MappingReport>;
 }

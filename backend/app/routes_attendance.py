@@ -1,5 +1,5 @@
-import hashlib
 import csv
+import hashlib
 import io
 import json
 import os
@@ -14,17 +14,66 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .db import get_db
-from .domain import (audit, authorized_class_ids, candidate_student_ids, ensure_version,
-                     faculty_for_user, make_job_key, page, require_session_access)
+from .domain import (
+    audit,
+    authorized_class_ids,
+    candidate_student_ids,
+    ensure_version,
+    faculty_for_user,
+    make_job_key,
+    page,
+    require_session_access,
+)
 from .errors import Problem
-from .models import (AttendanceRecord, AttendanceSession, AttendanceSessionClass, CourseClass, Faculty,
-                     AttendanceSessionImage, AttendanceStatus, Enrolment, JobStatus, PanoramaDraft,
-                     RecognitionJob, RecognitionCandidate, FaceDetection, FacultyClassAssignment, Role, SessionStatus, StudentFaceEmbedding,
-                     StudentFaceImage, Student, TwinReview, User, InstitutionSettings)
-from .schemas import (AmendmentRequest, AttendanceRecordOut, FinalizeRequest, Page,
-                      PanoramaAttach, SessionCreate, SessionOut)
-from .security import (create_face_image_token, create_image_token, create_panorama_token, current_user, optional_current_user, require_roles,
-                       verify_face_image_token, verify_image_token, verify_panorama_token)
+from .models import (
+    AcademicBatch,
+    AcademicProgram,
+    AcademicSection,
+    AttendanceRecord,
+    AttendanceSession,
+    AttendanceSessionClass,
+    AttendanceSessionImage,
+    AttendanceStatus,
+    CourseClass,
+    Department,
+    Enrolment,
+    FaceDetection,
+    Faculty,
+    FacultyClassAssignment,
+    InstitutionSettings,
+    JobStatus,
+    PanoramaDraft,
+    ProgramSubject,
+    RecognitionCandidate,
+    RecognitionJob,
+    Role,
+    SessionStatus,
+    Student,
+    StudentFaceEmbedding,
+    StudentFaceImage,
+    TwinReview,
+    User,
+)
+from .schemas import (
+    AmendmentRequest,
+    AttendanceRecordOut,
+    FinalizeRequest,
+    Page,
+    PanoramaAttach,
+    SessionCreate,
+    SessionOut,
+)
+from .security import (
+    create_face_image_token,
+    create_image_token,
+    create_panorama_token,
+    current_user,
+    optional_current_user,
+    require_roles,
+    verify_face_image_token,
+    verify_image_token,
+    verify_panorama_token,
+)
 from .storage import ObjectStorage, decode_image_pixels, validate_image
 from .worker import process_attendance, process_face_enrolment
 
@@ -372,7 +421,7 @@ def session_image_content(session_id:str,image_id:str,token:str=Query(...),db:Se
 def annotated_session_image(session_id:str,image_id:str,token:str=Query(...),db:Session=Depends(get_db)):
     verify_image_token(token,session_id,image_id);row=db.get(AttendanceSessionImage,image_id)
     if not row or row.session_id!=session_id:raise Problem(404,"Session image not found","The image does not exist.")
-    from PIL import Image,ImageDraw,ImageFont,ImageOps
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
     with Image.open(io.BytesIO(ObjectStorage().get(row.object_key))) as source:
         image=ImageOps.exif_transpose(source).convert("RGB")
     draw=ImageDraw.Draw(image)
@@ -553,15 +602,28 @@ def retry(session_id:str,db:Session=Depends(get_db),actor:User=Depends(require_r
 
 @router.get("/attendance/sessions",response_model=Page[SessionOut])
 def history(class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Query(None,alias="facultyId"),
+            school_id:str|None=Query(None,alias="schoolId"),department_id:str|None=Query(None,alias="departmentId"),
+            program_id:str|None=Query(None,alias="programId"),batch_id:str|None=Query(None,alias="batchId"),section_id:str|None=Query(None,alias="sectionId"),
             from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),
             status:SessionStatus|None=None,pending_review_only:bool=Query(False,alias="pendingReviewOnly"),search:str|None=None,
             page_number:int=Query(1,alias="page"),page_size:int=25,db:Session=Depends(get_db),actor:User=Depends(current_user)):
     q=select(AttendanceSession).order_by(AttendanceSession.created_at.desc())
     if actor.role==Role.FACULTY:q=q.where(AttendanceSession.faculty_id==faculty_for_user(db,actor).id)
     elif faculty_id:q=q.where(AttendanceSession.faculty_id==faculty_id)
-    if class_id or search:
+    class_joined=bool(class_id or search or school_id or department_id or program_id or batch_id or section_id)
+    if class_joined:
         q=q.join(AttendanceSessionClass,AttendanceSessionClass.session_id==AttendanceSession.id).join(CourseClass,CourseClass.id==AttendanceSessionClass.class_id)
     if class_id:q=q.where(AttendanceSessionClass.class_id==class_id)
+    if school_id or department_id or program_id or batch_id or section_id:
+        q=(q.join(AcademicSection,AcademicSection.id==CourseClass.section_id)
+           .join(AcademicBatch,AcademicBatch.id==AcademicSection.batch_id)
+           .join(AcademicProgram,AcademicProgram.id==AcademicBatch.program_id)
+           .join(Department,Department.id==AcademicProgram.department_id))
+        if school_id:q=q.where(Department.school_id==school_id)
+        if department_id:q=q.where(AcademicProgram.department_id==department_id)
+        if program_id:q=q.where(AcademicBatch.program_id==program_id)
+        if batch_id:q=q.where(AcademicSection.batch_id==batch_id)
+        if section_id:q=q.where(CourseClass.section_id==section_id)
     if from_date:q=q.where(AttendanceSession.attendance_date>=from_date)
     if to_date:q=q.where(AttendanceSession.attendance_date<=to_date)
     if status:q=q.where(AttendanceSession.status==status)
@@ -569,10 +631,12 @@ def history(class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Qu
     if search:
         q=(q.join(Faculty,Faculty.id==AttendanceSession.faculty_id)
            .where(or_(CourseClass.code.ilike(f"%{search}%"),CourseClass.subject.ilike(f"%{search}%"),Faculty.name.ilike(f"%{search}%"))).distinct())
+    if class_joined:q=q.distinct()
     items,total,p,s=page(q,db,page_number,page_size);return Page(items=items,page=p,page_size=s,total=total,has_more=p*s<total)
 
 
-def _report_data(db:Session,actor:User,class_id:str|None,faculty_id:str|None,department:str|None,
+def _report_data(db:Session,actor:User,class_id:str|None,faculty_id:str|None,department:str|None,department_id:str|None,
+                 school_id:str|None,program_id:str|None,batch_id:str|None,section_id:str|None,subject_id:str|None,
                  from_date:date|None,to_date:date|None,institution_wide:bool=False):
     if actor.role==Role.FACULTY and institution_wide:
         raise Problem(403,"Institution report unavailable","Faculty accounts can only view their assigned classes.")
@@ -582,6 +646,18 @@ def _report_data(db:Session,actor:User,class_id:str|None,faculty_id:str|None,dep
         class_query=class_query.where(CourseClass.id.in_(authorized_class_ids(db,actor)))
     if class_id:class_query=class_query.where(CourseClass.id==class_id)
     if department:class_query=class_query.where(CourseClass.department==department)
+    if school_id or department_id or program_id or batch_id or section_id:
+        class_query=(class_query.join(AcademicSection,AcademicSection.id==CourseClass.section_id)
+                     .join(AcademicBatch,AcademicBatch.id==AcademicSection.batch_id)
+                     .join(AcademicProgram,AcademicProgram.id==AcademicBatch.program_id)
+                     .join(Department,Department.id==AcademicProgram.department_id))
+        if school_id:class_query=class_query.where(Department.school_id==school_id)
+        if department_id:class_query=class_query.where(AcademicProgram.department_id==department_id)
+        if program_id:class_query=class_query.where(AcademicBatch.program_id==program_id)
+        if batch_id:class_query=class_query.where(AcademicSection.batch_id==batch_id)
+        if section_id:class_query=class_query.where(CourseClass.section_id==section_id)
+    if subject_id:
+        class_query=class_query.where(CourseClass.program_subject_id.in_(select(ProgramSubject.id).where(ProgramSubject.subject_id==subject_id)))
     if effective_faculty_id:
         class_query=class_query.join(FacultyClassAssignment,FacultyClassAssignment.class_id==CourseClass.id).where(FacultyClassAssignment.faculty_id==effective_faculty_id)
     classes=list(db.scalars(class_query.order_by(CourseClass.code)).unique())
@@ -622,10 +698,13 @@ def _student_stats(students:list[Student],records:list[AttendanceRecord],thresho
 @router.get("/reports/attendance")
 def report(class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Query(None,alias="facultyId"),
            from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),
-           department:str|None=None,institution_wide:bool=Query(False,alias="institutionWide"),
+           department:str|None=None,school_id:str|None=Query(None,alias="schoolId"),department_id:str|None=Query(None,alias="departmentId"),
+           program_id:str|None=Query(None,alias="programId"),batch_id:str|None=Query(None,alias="batchId"),section_id:str|None=Query(None,alias="sectionId"),
+           subject_id:str|None=Query(None,alias="subjectId"),
+           institution_wide:bool=Query(False,alias="institutionWide"),
            db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
     classes,sessions,students,records,threshold,effective_faculty_id=_report_data(
-        db,actor,class_id,faculty_id,department,from_date,to_date,institution_wide)
+        db,actor,class_id,faculty_id,department,department_id,school_id,program_id,batch_id,section_id,subject_id,from_date,to_date,institution_wide)
     session_by_id={item.id:item for item in sessions};present=sum(r.status==AttendanceStatus.PRESENT for r in records);total=len(records)
     trend=[]
     for day in sorted({session.attendance_date for session in sessions}):
@@ -652,8 +731,24 @@ def report(class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Que
                                "classCount":len(set().union(*(session_classes[sid] for sid in ids))) if ids else 0,
                                "sessionCount":len(ids),"lowAttendanceCount":low})
     stats=_student_stats(students,records,threshold);low=[item for item in stats if item["belowThreshold"]]
-    scope="CLASS" if class_id else "FACULTY" if effective_faculty_id else "DEPARTMENT" if department else "INSTITUTION"
-    scope_id=class_id or effective_faculty_id or department
+    if class_id:
+        scope,scope_id="CLASS",class_id
+    elif effective_faculty_id:
+        scope,scope_id="FACULTY",effective_faculty_id
+    elif subject_id:
+        scope,scope_id="SUBJECT",subject_id
+    elif section_id:
+        scope,scope_id="SECTION",section_id
+    elif batch_id:
+        scope,scope_id="BATCH",batch_id
+    elif program_id:
+        scope,scope_id="PROGRAMME",program_id
+    elif department_id or department:
+        scope,scope_id="DEPARTMENT",department_id or department
+    elif school_id:
+        scope,scope_id="SCHOOL",school_id
+    else:
+        scope,scope_id="INSTITUTION",None
     return {"scope":scope,"scopeId":scope_id,"from":(from_date or date.today()).isoformat(),"to":(to_date or date.today()).isoformat(),
             "overallPercentage":round(100*present/total,2) if total else 0,"totalSessions":len(sessions),"studentCount":len(students),
             "trend":trend,"byClass":by_class,"byFaculty":by_faculty,"lowAttendanceStudents":low[:5],
@@ -663,11 +758,13 @@ def report(class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Que
 @router.get("/reports/attendance/students")
 def student_report(page_number:int=Query(1,alias="page"),page_size:int=25,
                    class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Query(None,alias="facultyId"),
-                   from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),department:str|None=None,
+                   from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),department:str|None=None,school_id:str|None=Query(None,alias="schoolId"),department_id:str|None=Query(None,alias="departmentId"),
+                   program_id:str|None=Query(None,alias="programId"),batch_id:str|None=Query(None,alias="batchId"),section_id:str|None=Query(None,alias="sectionId"),
+                   subject_id:str|None=Query(None,alias="subjectId"),
                    institution_wide:bool=Query(False,alias="institutionWide"),search:str|None=None,
                    low_attendance_only:bool=Query(False,alias="lowAttendanceOnly"),
                    db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
-    _,_,students,records,threshold,_=_report_data(db,actor,class_id,faculty_id,department,from_date,to_date,institution_wide)
+    _,_,students,records,threshold,_=_report_data(db,actor,class_id,faculty_id,department,department_id,school_id,program_id,batch_id,section_id,subject_id,from_date,to_date,institution_wide)
     items=_student_stats(students,records,threshold)
     if search:
         needle=search.strip().casefold();items=[x for x in items if needle in x["name"].casefold() or needle in x["rollNumber"].casefold()]
@@ -675,6 +772,64 @@ def student_report(page_number:int=Query(1,alias="page"),page_size:int=25,
     items.sort(key=lambda item:(item["percentage"],item["name"].casefold()))
     page_number=max(page_number,1);size=min(max(page_size,1),100);start=(page_number-1)*size;subset=items[start:start+size]
     return {"items":subset,"page":page_number,"pageSize":size,"total":len(items),"hasMore":start+size<len(items),"threshold":threshold}
+
+
+@router.get("/reports/attendance/export")
+def export_report(format:str=Query("csv",pattern="^(csv|json|xlsx|pdf)$"),
+                  class_id:str|None=Query(None,alias="classId"),faculty_id:str|None=Query(None,alias="facultyId"),
+                  from_date:date|None=Query(None,alias="from"),to_date:date|None=Query(None,alias="to"),department:str|None=None,
+                  school_id:str|None=Query(None,alias="schoolId"),department_id:str|None=Query(None,alias="departmentId"),
+                  program_id:str|None=Query(None,alias="programId"),batch_id:str|None=Query(None,alias="batchId"),
+                  section_id:str|None=Query(None,alias="sectionId"),subject_id:str|None=Query(None,alias="subjectId"),institution_wide:bool=Query(False,alias="institutionWide"),
+                  low_attendance_only:bool=Query(False,alias="lowAttendanceOnly"),search:str|None=None,
+                  db:Session=Depends(get_db),actor:User=Depends(require_roles(Role.ADMIN,Role.FACULTY))):
+    """Export the complete student roll for the exact report scope shown in the UI."""
+    classes,sessions,students,records,threshold,_=_report_data(
+        db,actor,class_id,faculty_id,department,department_id,school_id,program_id,batch_id,section_id,subject_id,
+        from_date,to_date,institution_wide)
+    items=_student_stats(students,records,threshold)
+    if search:
+        needle=search.strip().casefold();items=[x for x in items if needle in x["name"].casefold() or needle in x["rollNumber"].casefold()]
+    if low_attendance_only:items=[x for x in items if x["belowThreshold"]]
+    items.sort(key=lambda item:(item["percentage"],item["name"].casefold()))
+    data=[{"student_id":x["studentId"],"roll_number":x["rollNumber"],"name":x["name"],
+           "attended_sessions":x["attendedSessions"],"determined_sessions":x["totalSessions"],
+           "attendance_percentage":x["percentage"],"below_threshold":x["belowThreshold"]} for x in items]
+    suffix=f"{from_date or 'all'}-to-{to_date or 'all'}";filename=f"attendance-report-{suffix}.{format}"
+    headers={"Content-Disposition":f'attachment; filename="{filename}"'}
+    metadata={"from":from_date.isoformat() if from_date else None,"to":to_date.isoformat() if to_date else None,
+              "threshold":threshold,"classCount":len(classes),"sessionCount":len(sessions),"studentCount":len(data)}
+    if format=="json":return Response(json.dumps({"report":metadata,"students":data},indent=2),media_type="application/json",headers=headers)
+    fields=list(data[0]) if data else ["student_id","roll_number","name","attended_sessions","determined_sessions","attendance_percentage","below_threshold"]
+    if format=="csv":
+        target=io.StringIO();writer=csv.DictWriter(target,fieldnames=fields);writer.writeheader();writer.writerows(data)
+        return Response(target.getvalue(),media_type="text/csv",headers=headers)
+    if format=="xlsx":
+        from openpyxl import Workbook
+        book=Workbook();sheet=book.active;sheet.title="Attendance report";sheet.append(fields)
+        for item in data:sheet.append([item.get(field) for field in fields])
+        output=io.BytesIO();book.save(output)
+        return Response(output.getvalue(),media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers=headers)
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+    output=io.BytesIO();doc=SimpleDocTemplate(output,pagesize=landscape(A4));styles=getSampleStyleSheet()
+    body=[Paragraph("Attendance report",styles["Title"]),
+          Paragraph(f"Students: {len(data)} | Sessions: {len(sessions)} | Threshold: {threshold}%",styles["BodyText"]),Spacer(1,12)]
+    table=Table([["Student ID","Roll","Name","Present","Determined","Attendance","Below threshold"]]+
+                [[x["student_id"],x["roll_number"],x["name"],x["attended_sessions"],x["determined_sessions"],
+                  f'{x["attendance_percentage"]:.2f}%',"Yes" if x["below_threshold"] else "No"] for x in data],repeatRows=1)
+    table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#0f766e")),("TEXTCOLOR",(0,0),(-1,0),colors.white),
+                               ("GRID",(0,0),(-1,-1),.5,colors.grey),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+                               ("FONTSIZE",(0,0),(-1,-1),8),("VALIGN",(0,0),(-1,-1),"TOP")]))
+    body.append(table);doc.build(body);return Response(output.getvalue(),media_type="application/pdf",headers=headers)
 
 
 @router.get("/attendance/sessions/{session_id}/export")
@@ -693,10 +848,16 @@ def export_session(session_id:str,format:str=Query("csv",pattern="^(csv|json|xls
         book=Workbook();sheet=book.active;sheet.title="Attendance";sheet.append(fields)
         for item in data:sheet.append([item.get(field) for field in fields])
         output=io.BytesIO();book.save(output);return Response(output.getvalue(),media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers=headers)
-    from reportlab.lib.pagesizes import A4,landscape
     from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate,Table,TableStyle,Paragraph,Spacer
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
     output=io.BytesIO();doc=SimpleDocTemplate(output,pagesize=landscape(A4));styles=getSampleStyleSheet();body=[Paragraph(f"Attendance — {session.attendance_date}",styles["Title"]),Spacer(1,12)]
     table=Table([["Student ID","Roll","Name","AI","Faculty","Score"]]+[[x["student_id"],x["roll_number"],x["name"],x["ai_status"],x["faculty_status"],"" if x["score"] is None else f'{x["score"]:.4f}'] for x in data],repeatRows=1)
     table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#0f766e")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.5,colors.grey),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),8),("VALIGN",(0,0),(-1,-1),"TOP")]))

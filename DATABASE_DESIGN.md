@@ -263,3 +263,10 @@ Recognition initially loads only active embeddings for Students enrolled in sele
 - Restrict direct database access; routine changes must pass through API authorization and auditing.
 - Back up the database and object store as one logical dataset so metadata never points to missing evidence after restoration.
 
+# Academic hierarchy transition
+
+Academic placement is normalized as `schools -> academic_departments -> academic_programs -> academic_batches -> academic_sections`. Reusable `subjects` are assigned to programmes through `program_subjects`, optionally for a semester. Students retain their legacy `department`, `semester`, and `section` values during migration and carry nullable hierarchy foreign keys plus a persisted `mapping_status`. `NEEDS_MAPPING` students cannot be enrolled into normalized classes. Run `python scripts/export_mapping_report.py` from `backend` for the reconciliation CSV.
+
+Class offerings reference `program_subjects` and `academic_sections`. The legacy text columns remain available during the additive compatibility phase; they must not be removed or made mandatory until every required historical record has a deterministic mapping.
+
+`institution_settings.class_types` is the administrator-managed source for permitted class types. `institution_settings.academic_session` and `semester_count` persist the defaults used by academic forms. Class write endpoints validate class type against settings, just as faculty designations validate against `faculty_roles`. Report and attendance queries accept the normalized hierarchy identifiers and apply those filters in SQL. Scoped report exports call the same aggregation path as the on-screen report so CSV, XLSX, PDF, and JSON output cannot silently widen the selected school, department, programme, batch, section, subject, class, faculty, date, search, or low-attendance scope.

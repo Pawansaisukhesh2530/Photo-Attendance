@@ -12,8 +12,7 @@ export interface AdminDestination {
   href: string;
   label: string;
   icon: IconName;
-  /** True for the five destinations that get their own bottom tab on phones. */
-  primary: boolean;
+  group: 'Overview' | 'Academics' | 'People' | 'Teaching' | 'Oversight' | 'System';
   /** Short description, shown in the More menu where there is room for it. */
   description: string;
 }
@@ -24,7 +23,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/dashboard',
     label: 'Dashboard',
     icon: 'dashboard',
-    primary: true,
+    group: 'Overview',
     description: 'Institution overview',
   },
   {
@@ -32,7 +31,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/faculty',
     label: 'Faculty',
     icon: 'faculty',
-    primary: true,
+    group: 'People',
     description: 'Lecturers, status and assignments',
   },
   {
@@ -40,7 +39,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/students',
     label: 'Students',
     icon: 'students',
-    primary: true,
+    group: 'People',
     description: 'Institution-wide student directory',
   },
   {
@@ -48,7 +47,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/classes',
     label: 'Classes',
     icon: 'classes',
-    primary: true,
+    group: 'Teaching',
     description: 'Catalogue, enrolment and lecturers',
   },
   {
@@ -56,7 +55,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/attendance',
     label: 'Attendance',
     icon: 'history',
-    primary: false,
+    group: 'Teaching',
     description: 'Every recorded session',
   },
   {
@@ -64,7 +63,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/reports',
     label: 'Reports',
     icon: 'reports',
-    primary: false,
+    group: 'Oversight',
     description: 'Institution attendance analytics',
   },
   {
@@ -72,7 +71,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/audit',
     label: 'Audit',
     icon: 'audit',
-    primary: false,
+    group: 'System',
     description: 'Read-only record of every change',
   },
   {
@@ -80,7 +79,7 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/settings',
     label: 'Settings',
     icon: 'settings',
-    primary: false,
+    group: 'System',
     description: 'Institution policy and configuration',
   },
   {
@@ -88,10 +87,30 @@ export const ADMIN_DESTINATIONS: AdminDestination[] = [
     href: '/(admin)/academic-structure',
     label: 'Academic structure',
     icon: 'classes',
-    primary: false,
+    group: 'Academics',
     description: 'Schools, departments, programmes, batches and subjects',
+  },
+  {
+    segment: 'curriculum',
+    href: '/(admin)/curriculum',
+    label: 'Curriculum',
+    icon: 'reports',
+    group: 'Academics',
+    description: 'Subjects and programme curriculum',
+  },
+  {
+    segment: 'timetable',
+    href: '/(admin)/timetable',
+    label: 'Timetable',
+    icon: 'calendar',
+    group: 'Teaching',
+    description: 'Teaching schedule and room allocation',
   },
 ];
 
-/** The four that live behind "More" on a phone. */
-export const ADMIN_SECONDARY = ADMIN_DESTINATIONS.filter((d) => !d.primary);
+export const ADMIN_GROUP_ORDER = ['Overview', 'Academics', 'People', 'Teaching', 'Oversight', 'System'] as const;
+
+/** Destinations shown in the phone More directory. */
+export const ADMIN_SECONDARY = ADMIN_DESTINATIONS.filter(
+  (destination) => !['dashboard', 'academic-structure'].includes(destination.segment),
+);

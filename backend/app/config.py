@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     insightface_tile_trigger_dimension: int = Field(default=1800, ge=640, le=8192)
     insightface_max_faces_per_image: int = Field(default=250, ge=1, le=1000)
     min_attendance_face_size: int = Field(default=32, ge=16, le=512)
+    # ArcFace cosine similarity threshold. Keep the agreed standard baseline unless an
+    # environment-specific calibration explicitly overrides it.
     match_threshold: float = Field(default=0.50, ge=-1, le=1)
     ambiguity_margin: float = Field(default=0.05, ge=0, le=2)
     duplicate_template_threshold: float = Field(default=0.995, ge=-1, le=1)
@@ -53,6 +55,17 @@ class Settings(BaseSettings):
     enrolment_duplicate_face_overlap_ratio: float = Field(default=0.50, ge=0, le=1)
     max_session_images: int = 8
     max_candidates: int = 500
+
+    @field_validator("recognition_backend", mode="before")
+    @classmethod
+    def migrate_legacy_recognition_backend(cls, value):
+        return "insightface" if str(value).lower() == "opencv" else value
+
+    @model_validator(mode="after")
+    def align_legacy_model_version(self):
+        if self.model_version.startswith("opencv-"):
+            self.model_version = "insightface-buffalo-l-v3"
+        return self
 
 
 @lru_cache

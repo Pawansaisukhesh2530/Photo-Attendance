@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import {
   ADMIN_SECONDARY,
+  ADMIN_GROUP_ORDER,
   AdminScaffold,
   Button,
   Card,
@@ -51,9 +52,12 @@ export default function AdminMoreScreen() {
     >
       <Screen scrollable respectBottomInset={false}>
         <View style={styles.block}>
-          <SectionHeader title="Administration" divider />
+          {ADMIN_GROUP_ORDER.filter((group) => group !== 'Overview').map((group) => {
+            const destinations = ADMIN_SECONDARY.filter((destination) => destination.group === group);
+            if (!destinations.length) return null;
+            return <View key={group} style={styles.group}><SectionHeader title={group} divider />
           <Card padded={false}>
-            {ADMIN_SECONDARY.map((destination, index) => (
+            {destinations.map((destination, index) => (
               <AnimatedPressable
                 key={destination.segment}
                 onPress={() => router.push(destination.href as never)}
@@ -62,7 +66,7 @@ export default function AdminMoreScreen() {
                 accessibilityLabel={`${destination.label}. ${destination.description}`}
                 style={[
                   styles.row,
-                  index < ADMIN_SECONDARY.length - 1 && styles.divider,
+                  index < destinations.length - 1 && styles.divider,
                 ]}
               >
                 <View style={styles.well}>
@@ -80,6 +84,7 @@ export default function AdminMoreScreen() {
               </AnimatedPressable>
             ))}
           </Card>
+          </View>})}
         </View>
 
         <View style={styles.block}>
@@ -121,6 +126,10 @@ export default function AdminMoreScreen() {
 const styles = StyleSheet.create({
   block: {
     marginTop: spacing.md,
+  },
+  group: {
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
   },
   row: {
     flexDirection: 'row',

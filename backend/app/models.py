@@ -30,6 +30,11 @@ class FacultyStatus(str, enum.Enum):
     ON_LEAVE = "ON_LEAVE"
 
 
+class MappingStatus(str, enum.Enum):
+    NEEDS_MAPPING = "NEEDS_MAPPING"
+    MAPPED = "MAPPED"
+
+
 class SlotType(str, enum.Enum):
     CLASS = "CLASS"
     FREE = "FREE"
@@ -148,6 +153,7 @@ class ProgramSubject(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     program_id: Mapped[str] = mapped_column(ForeignKey("academic_programs.id", ondelete="CASCADE"), index=True)
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id", ondelete="RESTRICT"), index=True)
+    semester_number: Mapped[int | None] = mapped_column(Integer)
 
 
 class Faculty(Versioned, Base):
@@ -157,6 +163,7 @@ class Faculty(Versioned, Base):
     employee_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     department: Mapped[str] = mapped_column(String(120), index=True)
+    department_id: Mapped[str | None] = mapped_column(ForeignKey("academic_departments.id", ondelete="RESTRICT"), index=True)
     designation: Mapped[str] = mapped_column(String(120), default="Faculty")
     status: Mapped[FacultyStatus] = mapped_column(Enum(FacultyStatus), default=FacultyStatus.ACTIVE)
 
@@ -170,6 +177,13 @@ class Student(Versioned, Base):
     department: Mapped[str] = mapped_column(String(120), index=True)
     semester: Mapped[int] = mapped_column(Integer)
     section: Mapped[str] = mapped_column(String(20))
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.id", ondelete="RESTRICT"), index=True)
+    department_id: Mapped[str | None] = mapped_column(ForeignKey("academic_departments.id", ondelete="RESTRICT"), index=True)
+    program_id: Mapped[str | None] = mapped_column(ForeignKey("academic_programs.id", ondelete="RESTRICT"), index=True)
+    batch_id: Mapped[str | None] = mapped_column(ForeignKey("academic_batches.id", ondelete="RESTRICT"), index=True)
+    section_id: Mapped[str | None] = mapped_column(ForeignKey("academic_sections.id", ondelete="RESTRICT"), index=True)
+    mapping_status: Mapped[MappingStatus] = mapped_column(Enum(MappingStatus), default=MappingStatus.NEEDS_MAPPING, index=True)
+    mapping_note: Mapped[str | None] = mapped_column(String(500))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -184,6 +198,8 @@ class CourseClass(Versioned, Base):
     semester: Mapped[int] = mapped_column(Integer)
     section: Mapped[str] = mapped_column(String(20))
     academic_session: Mapped[str] = mapped_column(String(30))
+    program_subject_id: Mapped[str | None] = mapped_column(ForeignKey("program_subjects.id", ondelete="RESTRICT"), index=True)
+    section_id: Mapped[str | None] = mapped_column(ForeignKey("academic_sections.id", ondelete="RESTRICT"), index=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     timetable_slots: Mapped[list["TimetableSlot"]] = relationship(back_populates="course_class", lazy="selectin")
 
@@ -384,7 +400,10 @@ class InstitutionSettings(Versioned, Base):
     institution_name: Mapped[str] = mapped_column(String(250), default="EduTrace Institution")
     institution_code: Mapped[str] = mapped_column(String(20), default="EDU")
     attendance_threshold: Mapped[int] = mapped_column(Integer, default=75)
+    academic_session: Mapped[str] = mapped_column(String(30), default="2026-27")
+    semester_count: Mapped[int] = mapped_column(Integer, default=8)
     image_retention_days: Mapped[int] = mapped_column(Integer, default=30)
     departments: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["CSE"])
     faculty_roles: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["Assistant Professor"])
+    class_types: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["Lecture", "Lab", "Tutorial"])
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

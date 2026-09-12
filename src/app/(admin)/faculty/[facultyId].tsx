@@ -271,12 +271,35 @@ export default function AdminFacultyProfileScreen() {
           <Card padded={false} style={styles.factCard}>
             <FactRow icon="faculty" label="Faculty ID" value={member.employeeId} />
             <FactRow icon="person" label="Email" value={member.email} />
+            <FactRow icon="institution" label="School" value={member.schoolName ?? 'Not assigned'} />
             <FactRow icon="institution" label="Department" value={member.department ?? '—'} />
             <FactRow icon="clock" label="Phone" value={member.phone ?? 'Not recorded'} />
             <FactRow
               icon="calendar"
               label="Joined"
               value={member.joinedAt ? formatShortDate(member.joinedAt) : 'Not recorded'}
+              last
+            />
+          </Card>
+        </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Attendance taught" divider />
+          <Card padded={false} style={styles.factCard}>
+            <FactRow
+              icon="attendance"
+              label="Finalized sessions"
+              value={String(member.taughtAttendance?.sessions ?? 0)}
+            />
+            <FactRow
+              icon="students"
+              label="Determined records"
+              value={String(member.taughtAttendance?.determinedRecords ?? 0)}
+            />
+            <FactRow
+              icon="reports"
+              label="Recorded attendance"
+              value={`${member.taughtAttendance?.percentage ?? 0}%`}
               last
             />
           </Card>
@@ -409,6 +432,41 @@ export default function AdminFacultyProfileScreen() {
               <WeeklyTimetable slots={timetableSlots} />
             </Card>
           )}
+        </View>
+
+        <View style={styles.block}>
+          <SectionHeader title="Activity" divider />
+          <Card padded={false} style={styles.activityCard}>
+            {(member.activity ?? []).length === 0 ? (
+              <Text variant="bodyMd" color={palette.onSurfaceVariant} style={styles.activityEmpty}>
+                No faculty activity has been recorded yet.
+              </Text>
+            ) : (
+              (member.activity ?? []).map((entry, index, activity) => (
+                <View
+                  key={entry.id}
+                  style={[styles.activityRow, index < activity.length - 1 && styles.factDivider]}
+                >
+                  <View style={styles.activityIcon}>
+                    <Icon name="audit" size={16} color={palette.primary} />
+                  </View>
+                  <View style={styles.flex}>
+                    <Text variant="bodyMd" color={palette.onSurface}>
+                      {entry.action.replaceAll('_', ' ')}
+                    </Text>
+                    <Text variant="labelMd" color={palette.outline}>
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </Text>
+                    {entry.reason ? (
+                      <Text variant="labelMd" color={palette.onSurfaceVariant}>
+                        {entry.reason}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))
+            )}
+          </Card>
         </View>
       </Screen>
 
@@ -560,6 +618,27 @@ const styles = StyleSheet.create({
   },
   assignButton: {
     marginTop: spacing.md,
+  },
+  activityCard: {
+    paddingHorizontal: spacing.md,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.primaryFixed,
+  },
+  activityEmpty: {
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
   },
   sheetEmpty: {
     paddingHorizontal: spacing.md,

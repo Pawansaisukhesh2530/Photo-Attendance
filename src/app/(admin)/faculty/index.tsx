@@ -23,6 +23,7 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/config';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useInfiniteFaculty } from '@/hooks/useFacultyAdmin';
 import { useInstitutionSettings } from '@/hooks/useSettings';
+import { useAcademicTree } from '@/hooks/useAcademic';
 import { palette, radius, spacing, touch, useResponsive } from '@/theme';
 import type { Faculty, FacultyStatus } from '@/types';
 
@@ -39,9 +40,10 @@ type DeptFilter = 'ALL' | string;
  * view.
  */
 export default function AdminFacultyListScreen() {
-  const params = useLocalSearchParams<{ q?: string; dept?: string; status?: string }>();
+  const params = useLocalSearchParams<{ q?: string; dept?: string; status?: string; schoolId?: string; departmentId?: string; assignedOnly?: string }>();
   const { isExpanded, screenPadding } = useResponsive();
   const { data: settings } = useInstitutionSettings();
+  const academic=useAcademicTree();
 
   const search = params.q ?? '';
   const department: DeptFilter = params.dept && params.dept.length > 0 ? params.dept : 'ALL';
@@ -60,10 +62,13 @@ export default function AdminFacultyListScreen() {
   const query = useMemo(
     () => ({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
-      ...(department !== 'ALL' ? { department } : {}),
+      ...(department !== 'ALL' ? { departmentId:department } : {}),
       ...(status !== 'ALL' ? { status } : {}),
+      ...(params.schoolId ? { schoolId: params.schoolId } : {}),
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params.assignedOnly === 'true' ? { assignedOnly: true } : {}),
     }),
-    [debouncedSearch, department, status],
+    [debouncedSearch, department, status, params.schoolId, params.departmentId, params.assignedOnly],
   );
 
   const {
@@ -90,21 +95,22 @@ export default function AdminFacultyListScreen() {
     router.push({ pathname: '/(admin)/faculty/[facultyId]', params: { facultyId: member.id } });
   }, []);
 
-  const hasFilters = search.trim().length > 0 || department !== 'ALL' || status !== 'ALL';
+  const hasFilters = search.trim().length > 0 || department !== 'ALL' || status !== 'ALL' ||
+    Boolean(params.schoolId || params.departmentId || params.assignedOnly);
   const clearFilters = useCallback(() => {
-    router.setParams({ q: '', dept: '', status: '' });
+    router.setParams({ q: '', dept: '', status: '', schoolId: '', departmentId: '', assignedOnly: '' });
   }, []);
 
   const deptOptions = useMemo<FilterChipOption<DeptFilter>[]>(
     () => [
       { value: 'ALL', label: 'All departments' },
-      ...(settings?.departments ?? []).map((d) => ({
-        value: d,
+      ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
+        value: d.id,
         // Abbreviated: full department names do not fit a chip on a phone.
-        label: d.split(' ').map((w) => w[0]).join('').toUpperCase(),
+        label: d.code,
       })),
     ],
-    [settings],
+    [academic.data],
   );
 
   const columns = useMemo<DataColumn<Faculty>[]>(
@@ -168,6 +174,21 @@ export default function AdminFacultyListScreen() {
           <Text variant="bodyLg" color={palette.onSurface}>
             {row.assignedClassIds.length}
           </Text>
+        ),
+      },
+      {
+        key: 'timetable',
+        header: 'Timetable',
+        flex: 1.4,
+        minWidth: 1240,
+        render: (row) => (
+          <Badge
+            label={(row.timetableSlotCount ?? 0) > 0 ? `${row.timetableSlotCount} slots` : 'Missing'}
+            icon={(row.timetableSlotCount ?? 0) > 0 ? 'calendar' : 'warning'}
+            {...((row.timetableSlotCount ?? 0) > 0
+              ? {}
+              : { background: palette.tertiaryContainer, foreground: palette.onTertiaryContainer })}
+          />
         ),
       },
       {
@@ -260,6 +281,10 @@ export default function AdminFacultyListScreen() {
                 <Badge
                   label={`${row.assignedClassIds.length} ${row.assignedClassIds.length === 1 ? 'class' : 'classes'}`}
                   icon="classes"
+                />
+                <Badge
+                  label={(row.timetableSlotCount ?? 0) > 0 ? `${row.timetableSlotCount} timetable slots` : 'Timetable missing'}
+                  icon={(row.timetableSlotCount ?? 0) > 0 ? 'calendar' : 'warning'}
                 />
               </View>
 
