@@ -14,6 +14,7 @@ Last validation performed on September 16, 2026:
 - `npm run lint` passed.
 - Backend test suite passed: 34 tests.
 - A fresh SQLite database migrated from the base revision through the remote academic-session migrations to `0014_academic_codes`.
+- Databases left at the briefly released `0012_academic_codes` revision can upgrade into the current migration chain without being recreated.
 - Alembic revision identifiers fit PostgreSQL's 32-character `alembic_version.version_num` column.
 
 ## Repository layout

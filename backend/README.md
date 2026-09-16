@@ -57,7 +57,7 @@ The worker accepts JPEG, PNG, HEIC, and HEIF uploads. A student enrolment image 
 
 ## Database migrations
 
-Both Windows startup scripts run `alembic upgrade head` before seeding or starting the API. The current migration head is `0014_academic_codes`. Migrations that alter constraints or columns use Alembic batch operations so the same history can upgrade PostgreSQL and the local SQLite database used for development and tests. Revision identifiers stay within the 32-character PostgreSQL `alembic_version.version_num` limit. Older local `.env` values that set `EDUTRACE_RECOGNITION_BACKEND=auto` or `opencv` are normalized to the supported InsightFace backend during startup.
+Both Windows startup scripts run `alembic upgrade head` before seeding or starting the API. The current migration head is `0014_academic_codes`. Migrations that alter constraints or columns use Alembic batch operations so the same history can upgrade PostgreSQL and the local SQLite database used for development and tests. Revision identifiers stay within the 32-character PostgreSQL `alembic_version.version_num` limit. The migration graph recognizes the briefly released `0012_academic_codes` identifier and reconciles those databases into the current chain without deleting application data. Older local `.env` values that set `EDUTRACE_RECOGNITION_BACKEND=auto` or `opencv` are normalized to the supported InsightFace backend during startup.
 
 To inspect or apply migrations manually:
 
