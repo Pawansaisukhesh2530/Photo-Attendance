@@ -218,7 +218,7 @@ export default function AdminFacultyFormScreen() {
               {fieldErrors.designation ? <Text variant="labelMd" color={palette.error}>{fieldErrors.designation}</Text> : null}
             </View>
 
-            <AcademicHierarchyFields through="departments" value={hierarchy} onChange={value=>{setHierarchy(value);setDepartment(academic.data?.departments.find(x=>x.id===value.departmentId)?.code??'')}} />
+            <AcademicHierarchyFields through="departments" value={hierarchy} onChange={value=>{setHierarchy(value);setDepartment(academic.data?.departments.find(x=>x.id===value.departmentId)?.name??'')}} />
             {fieldErrors.department ? <Text variant="labelMd" color={palette.error}>{fieldErrors.department}</Text> : null}
 
             <View style={styles.field}>

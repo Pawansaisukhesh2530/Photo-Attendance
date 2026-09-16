@@ -26,7 +26,7 @@ export function CurriculumPanel({ initialProgramId = '' }: { initialProgramId?: 
     return (items ?? []).filter((item) => item.active).map((item) => ({
       id: item.id,
       label: item.name,
-      description: item.code,
+      description: item.code ?? item.name,
       selected: item.id === (picker === 'programs' ? programId : subjectId),
     }));
   }, [picker, programId, subjectId, tree.data]);

@@ -182,7 +182,7 @@ class ClassOut(ClassIn):
 
 class AcademicRecordOut(BaseModel):
     id: str
-    code: str
+    code: str | None = None
     name: str
     active: bool
     version: int
@@ -195,7 +195,7 @@ class AcademicRecordOut(BaseModel):
 
 
 class AcademicCreate(BaseModel):
-    code: str = Field(min_length=1, max_length=30)
+    code: str | None = Field(default=None, min_length=1, max_length=30)
     name: str = Field(min_length=1, max_length=180)
     school_id: str | None = None
     department_id: str | None = None

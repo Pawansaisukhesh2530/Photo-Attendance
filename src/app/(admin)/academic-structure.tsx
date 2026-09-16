@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -55,6 +56,7 @@ export default function AcademicStructureScreen() {
   const tree = useAcademicTree(true);
   const selectedKind = validKind(params.kind);
   const level = levels.find((item) => item.kind === selectedKind) ?? levels[0]!;
+  const usesCode = selectedKind === 'programs' || selectedKind === 'subjects';
   const showingArchived = params.status === 'ARCHIVED';
   const list = useAcademicLevel(selectedKind, {
     pageSize: 100,
@@ -94,9 +96,9 @@ export default function AcademicStructureScreen() {
     setEditorOpen(true);
   };
   const save = async () => {
-    if (!code.trim() || !name.trim() || (level.parent && !parentId)) { setError('Complete every required field.'); return; }
+    if ((usesCode && !code.trim()) || !name.trim() || (level.parent && !parentId)) { setError('Complete every required field.'); return; }
     try {
-      const payload = { kind:selectedKind, code:code.trim(), name:name.trim(), ...(parentId ? { parentId } : {}), ...(startYear ? { startYear:Number(startYear) } : {}), ...(endYear ? { endYear:Number(endYear) } : {}) };
+      const payload = { kind:selectedKind, ...(usesCode ? { code:code.trim() } : {}), name:name.trim(), ...(parentId ? { parentId } : {}), ...(startYear ? { startYear:Number(startYear) } : {}), ...(endYear ? { endYear:Number(endYear) } : {}) };
       if (editing) await update.mutateAsync({ ...payload, id:editing.id, version:editing.version }); else await create.mutateAsync(payload);
       setEditorOpen(false);
       toast.show({ message: editing ? `${level.singular} updated` : `${level.singular} created`, tone:'success' });
@@ -115,7 +117,7 @@ export default function AcademicStructureScreen() {
     <AdminScaffold
       active="academic-structure"
       title={params.selected ? workspace.data?.record.name ?? level.singular : 'Academic structure'}
-      subtitle={params.selected ? workspace.data?.record.code : 'School → Department → Programme → Batch → Section'}
+      subtitle={params.selected ? workspace.data?.record.code ?? workspace.data?.path.map((item) => item.name).join(' / ') : 'School → Department → Programme → Batch → Section'}
       breadcrumbs={params.selected ? [{label:'Academic Structure',href:'/(admin)/academic-structure'},{label:level.title,href:`/(admin)/academic-structure?kind=${selectedKind}`},{label:workspace.data?.record.name ?? level.singular}] : undefined}
       onBack={params.selected ? () => router.back() : undefined}
       {...(settings ? { institutionName:settings.institutionName, institutionCode:settings.institutionCode } : {})}
@@ -141,7 +143,7 @@ export default function AcademicStructureScreen() {
             </View>
             <View style={styles.listBlock}>
               <SectionHeader title={level.title} meta={`${list.data?.total ?? 0} ${showingArchived ? 'archived' : 'active'}`} actionLabel={showingArchived ? 'View active' : 'View archived'} onAction={() => router.setParams({ status:showingArchived ? '' : 'ARCHIVED', selected:'' })} divider />
-              <SearchField value={params.q ?? ''} onChangeText={(value) => router.setParams({ q:value })} placeholder={`Search ${level.title.toLowerCase()} by name or code`} />
+              <SearchField value={params.q ?? ''} onChangeText={(value) => router.setParams({ q:value })} placeholder={`Search ${level.title.toLowerCase()} by ${usesCode ? 'name or code' : 'name'}`} />
               {params.needsCurriculum === 'true' ? <Card><Text color={palette.tertiaryFixedDim}>Showing programmes without a curriculum assignment.</Text></Card> : null}
               <Card padded={false}>
                 {list.data?.items.length ? list.data.items.map((item, index) => (
@@ -165,7 +167,7 @@ export default function AcademicStructureScreen() {
           <Card style={styles.editor}>
             <SectionHeader title={`${editing ? 'Edit' : 'Add'} ${level.singular}`} divider />
             {error ? <Text color={palette.error}>{error}</Text> : null}
-            <Input label="Code" value={code} onChangeText={setCode} autoCapitalize="characters" />
+            {usesCode ? <Input label="Code" value={code} onChangeText={setCode} autoCapitalize="characters" /> : null}
             <Input label="Name" value={name} onChangeText={setName} />
             {selectedKind === 'subjects' && !editing && suggestions.data?.length ? <View style={styles.suggestions}><Text variant="labelMd" color={palette.tertiaryFixedDim}>Possible existing subjects</Text>{suggestions.data.map((subject) => <AnimatedPressable key={subject.id} style={styles.suggestionRow} onPress={() => { setEditorOpen(false); openRecord(subject); }}><View style={styles.flex}><Text color={palette.onSurface}>{subject.code} · {subject.name}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{subject.programmeCount} programmes · {subject.classCount} classes</Text></View><Icon name="chevronRight" color={palette.outline} /></AnimatedPressable>)}</View> : null}
             {level.parent ? <View style={styles.field}><Text variant="labelMd" color={palette.onSurface}>Parent</Text><Button label={parents.find((item) => item.id === parentId)?.name ?? 'Select parent'} variant="secondary" fullWidth onPress={() => setParentOpen(true)} /></View> : null}
@@ -174,7 +176,7 @@ export default function AcademicStructureScreen() {
           </Card>
         ) : null}
       </Screen>
-      <SelectionSheet visible={parentOpen} title="Select parent" options={parents.map((item) => ({id:item.id,label:item.name,description:item.code,selected:item.id===parentId}))} onSelect={(id) => {setParentId(id);setParentOpen(false);}} onClose={() => setParentOpen(false)} searchable />
+      <SelectionSheet visible={parentOpen} title="Select parent" options={parents.map((item) => ({id:item.id,label:item.name,description:item.code ?? item.path?.map((part) => part.name).join(' / '),selected:item.id===parentId}))} onSelect={(id) => {setParentId(id);setParentOpen(false);}} onClose={() => setParentOpen(false)} searchable />
       <ConfirmationModal visible={Boolean(archiveTarget)} title={`Archive ${level.singular.toLowerCase()}?`} message={impact.isLoading ? 'Checking linked information…' : impact.data?.canArchive ? 'This item has no active dependencies and can be archived safely.' : `Archive is blocked because this item is still linked to ${Object.entries(impact.data?.blocking ?? {}).map(([key,value]) => `${value} ${key}`).join(', ')}.`} confirmLabel={impact.data?.canArchive ? 'Archive' : 'Close'} tone="warning" confirmLoading={archive.isPending || impact.isLoading} onCancel={() => setArchiveTarget(null)} onConfirm={() => { if (!archiveTarget || !impact.data?.canArchive) { setArchiveTarget(null); return; } void archive.mutateAsync({kind:selectedKind,id:archiveTarget.id}).then(() => {setArchiveTarget(null);router.back();}); }} />
     </AdminScaffold>
   );
@@ -187,8 +189,8 @@ function Workspace({ kind, data, onEdit, onArchive }: { kind:AcademicKind; data:
   const context = Object.fromEntries(data.path.map((item) => [contextKey[item.kind], item.id]));
   return <View style={styles.workspace}>
     <Card style={styles.identity}><View style={styles.identityTop}><View style={styles.recordIcon}><Icon name="institution" color={palette.primary} /></View><View style={styles.flex}><Text variant="headlineSm" color={palette.onSurface}>{data.record.name}</Text><Text color={palette.onSurfaceVariant}>{data.path.map((item) => item.name).join(' / ')}</Text></View><Button label="Edit" variant="secondary" size="sm" onPress={onEdit} /></View><View style={styles.counts}>{Object.entries(data.counts).filter(([,value])=>value>0).map(([label,value])=><View key={label} style={styles.count}><Text variant="titleLg" color={palette.onSurface}>{value}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{label}</Text></View>)}</View></Card>
-    {data.childKind ? <View style={styles.listBlock}><SectionHeader title={child?.title ?? 'Children'} actionLabel={`Add ${child?.singular ?? 'child'}`} onAction={() => router.push({pathname:'/(admin)/academic-structure',params:{kind:data.childKind,parentId:data.record.id,create:'1'}})} divider /><Card padded={false}>{data.children.length ? data.children.map((item,index)=><AnimatedPressable key={item.id} onPress={()=>router.push({pathname:'/(admin)/academic-structure',params:{kind:data.childKind,selected:item.id}})} style={[styles.row,index<data.children.length-1&&styles.divider]}><View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{item.name}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{item.code}</Text></View><Icon name="chevronRight" color={palette.outline}/></AnimatedPressable>):<Text color={palette.onSurfaceVariant} style={styles.empty}>No {child?.title.toLowerCase()} yet.</Text>}</Card></View> : null}
-    {kind === 'programs' ? <Card><SectionHeader title="Curriculum" meta={`${data.curriculum.length} subjects`} /><Button label="Manage curriculum" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/curriculum',params:{programId:data.record.id}})} /></Card> : null}
+    {data.childKind ? <View style={styles.listBlock}><SectionHeader title={child?.title ?? 'Children'} actionLabel={`Add ${child?.singular ?? 'child'}`} onAction={() => router.push({pathname:'/(admin)/academic-structure',params:{kind:data.childKind,parentId:data.record.id,create:'1'}})} divider /><Card padded={false}>{data.children.length ? data.children.map((item,index)=><AnimatedPressable key={item.id} onPress={()=>router.push({pathname:'/(admin)/academic-structure',params:{kind:data.childKind,selected:item.id}})} style={[styles.row,index<data.children.length-1&&styles.divider]}><View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{item.name}</Text>{item.code ? <Text variant="labelMd" color={palette.onSurfaceVariant}>{item.code}</Text> : null}</View><Icon name="chevronRight" color={palette.outline}/></AnimatedPressable>):<Text color={palette.onSurfaceVariant} style={styles.empty}>No {child?.title.toLowerCase()} yet.</Text>}</Card></View> : null}
+    {kind === 'programs' ? <Card><SectionHeader title="Curriculum" meta={`${data.curriculum.length} subjects`} /><Button label="Manage curriculum" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/curriculum',params:{programId:data.record.id}} as unknown as Href)} /></Card> : null}
     {kind === 'subjects' ? <View style={styles.listBlock}><SectionHeader title="Programmes using this subject" meta={`${data.curriculum.length} assignments`} divider /><Card padded={false}>{data.curriculum.length ? data.curriculum.map((link,index)=><AnimatedPressable key={link.id} style={[styles.row,index<data.curriculum.length-1&&styles.divider]} onPress={()=>link.program&&router.push({pathname:'/(admin)/academic-structure',params:{kind:'programs',selected:link.program.id}})}><View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{link.program?.name ?? 'Programme'}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{[link.school?.name,link.department?.name,link.semesterNumber ? `Semester ${link.semesterNumber}` : null].filter(Boolean).join(' / ')}</Text></View><Text variant="labelMd" color={palette.outline}>{link.classCount ?? 0} classes</Text><Icon name="chevronRight" color={palette.outline}/></AnimatedPressable>) : <Text color={palette.onSurfaceVariant} style={styles.empty}>This subject is not assigned to a programme yet.</Text>}</Card></View> : null}
     {kind === 'programs' || kind === 'batches' || kind === 'sections' ? <View style={styles.quickGrid}><Button label="Students" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/students',params:context})}/><Button label="Classes" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/classes',params:context})}/>{kind === 'sections' ? <Button label="Timetable" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/timetable',params:context})}/> : null}<Button label="Attendance" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/attendance',params:context})}/><Button label="Reports" variant="secondary" onPress={()=>router.push({pathname:'/(admin)/reports',params:context})}/>{kind === 'sections' ? <><Button label="Add student" icon="add" onPress={()=>router.push({pathname:'/(admin)/students/new',params:context})}/><Button label="Create class" icon="add" onPress={()=>router.push({pathname:'/(admin)/classes/new',params:context})}/></> : null}</View> : null}
     <View style={styles.listBlock}><SectionHeader title="Activity" meta={`${data.activity.length} recent`} divider /><Card>{data.activity.length ? data.activity.map((entry)=><View key={entry.id} style={styles.activity}><Text variant="bodyMd" color={palette.onSurface}>{entry.action.replaceAll('_',' ')}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{new Date(entry.createdAt).toLocaleString()}</Text></View>):<Text color={palette.onSurfaceVariant}>No recent changes for this item.</Text>}</Card></View>

@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     @field_validator("recognition_backend", mode="before")
     @classmethod
     def migrate_legacy_recognition_backend(cls, value):
-        return "insightface" if str(value).lower() == "opencv" else value
+        return "insightface" if str(value).lower() in {"auto", "opencv"} else value
 
     @model_validator(mode="after")
     def align_legacy_model_version(self):

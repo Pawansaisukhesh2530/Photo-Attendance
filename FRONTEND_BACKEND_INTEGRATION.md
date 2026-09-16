@@ -2,7 +2,7 @@
 
 ## Purpose
 
-EduTrace is an Expo/React Native frontend connected to a FastAPI backend. The frontend contains no mock dataset or mock service switch. Faculty, students, classes, face images, attendance sessions, reports, settings, and audit entries shown in the application are fetched from the backend.
+EduTrace is an Expo/React Native frontend connected to a FastAPI backend. The frontend contains no mock dataset or mock service switch. Academic structure, curriculum, faculty, students, classes, timetables, face images, attendance sessions, reports, settings, and audit entries shown in the application are fetched from the backend.
 
 The backend is the source of truth. PostgreSQL stores structured application data, private object storage holds images, and the recognition worker processes face images outside the API request that accepted them.
 
@@ -83,11 +83,16 @@ Access tokens are short lived. When a request receives `401`, the client attempt
 | Frontend feature | Backend endpoints |
 |---|---|
 | Login and current account | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` |
+| Academic structure and workspaces | `/academic/tree`, `/academic/overview`, `/academic/{kind}`, `/academic/{kind}/{id}` |
+| Programme curriculum | `/academic/programs/{programId}/subjects` and `/academic/programs/{programId}/subjects/{subjectId}` |
+| Student academic mapping | `/academic/mapping-report`, `/students/{id}/academic-mapping` |
 | Faculty employee management | `/faculty`, `/faculty/{id}`, `/faculty/{id}/status` |
 | Student management | `/students`, `/students/{id}` |
 | Class management | `/classes`, `/classes/{id}` |
 | Faculty assignment | `/classes/{id}/faculty` |
 | Student enrolment in classes | `/classes/{id}/enrolments` |
+| Administrator timetable editor | `/admin/timetable`, `/admin/timetable/slots`, `/admin/timetable/slots/{id}` |
+| Faculty personal timetable | `/timetable/mine`, `/timetable/mine/today` |
 | Student face gallery | `/students/{id}/face-images` and its revoke/reprocess routes |
 | Attendance history | `/attendance/sessions` |
 | Classroom capture | `/attendance/sessions`, then session image upload and processing routes |
@@ -106,15 +111,16 @@ Access tokens are short lived. When a request receives `401`, the client attempt
 The Admin should create data in this order because later records reference earlier ones:
 
 1. Log in with the seeded administrator account.
-2. Add Faculty employees. The backend creates each account with `DEFAULT_ACCOUNT_PASSWORD`; the local development default is `LocalTest123!` and should be replaced outside local development.
-3. Add Students with unique student ID and roll number.
-4. Create Classes.
-5. Assign one Faculty employee to each class.
-6. Enrol Students in the appropriate classes.
-7. Open every Student profile and upload 3–5 clear, recent face images.
-8. Have the Faculty employee log in, select a class, and take attendance.
+2. In **Academic structure**, create a school, department, programme, batch, and section in that order.
+3. Create subjects and assign them to programmes in Curriculum.
+4. Add Faculty employees and select their departments. The backend creates each account with `DEFAULT_ACCOUNT_PASSWORD`; the local development default is `LocalTest123!` and should be replaced outside local development.
+5. Add Students with unique student ID and roll number, selecting their academic hierarchy.
+6. Create Classes from a programme subject and section, then assign one Faculty employee.
+7. Enrol Students and create timetable slots as required.
+8. Open every Student profile and upload 3–5 clear, recent face images.
+9. Have the Faculty employee log in, select a class, and take attendance.
 
-Departments and faculty roles are configured by an Admin from Settings before faculty are created. Those saved settings populate the dropdowns, and the API validates submitted values against the same settings so spelling variants cannot create inconsistent values.
+Schools, departments, batches, and sections use names only. Programmes and subjects also have codes. Faculty roles remain configurable in Settings, while departments are managed in Academic structure and populate faculty, student, report, and class filters from the same records.
 
 The temporary faculty password is suitable only for local beta testing. Production must collect or generate a one-time password and force the employee to change it.
 
@@ -195,14 +201,15 @@ Processing uses an idempotency key based on the session, uploaded image checksum
 1. Confirm `/api/v1/health/live` returns `{"status":"ok"}`.
 2. Confirm `/api/v1/health/ready` reports the database as ready.
 3. Open the frontend and log in as Admin.
-4. Create two faculty accounts, several students, and at least one class.
-5. Assign Faculty and enrol Students.
-6. Upload 3–5 photographs for each Student.
-7. Log out and log in as the assigned Faculty employee.
-8. Capture several overlapping classroom views.
-9. Wait for processing and inspect the annotated image, scores, and student records.
-10. Resolve review items, finalize the session, and verify each export format.
-11. Log back in as Admin and confirm history, reports, and audit entries reflect the same backend data.
+4. Create an academic hierarchy and link at least one subject to a programme.
+5. Create two faculty accounts, several students, and at least one class using the hierarchy selectors.
+6. Assign Faculty, enrol Students, and create timetable slots.
+7. Upload 3–5 photographs for each Student.
+8. Log out and log in as the assigned Faculty employee.
+9. Capture several overlapping classroom views.
+10. Wait for processing and inspect the annotated image, scores, and student records.
+11. Resolve review items, finalize the session, and verify each export format.
+12. Log back in as Admin and confirm history, reports, and audit entries reflect the same backend data.
 
 ## Common connection problems
 

@@ -1,13 +1,13 @@
 import type { Id, PageRequest, Paginated } from './common';
 
 export type AcademicKind = 'schools' | 'departments' | 'programs' | 'batches' | 'sections' | 'subjects';
-export interface AcademicPathItem { kind:AcademicKind; id:Id; code:string; name:string }
+export interface AcademicPathItem { kind:AcademicKind; id:Id; code?:string; name:string }
 export type AcademicCounts = Record<string, number>;
-export interface AcademicRecord { id:Id; code:string; name:string; active:boolean; version:number; schoolId?:Id; departmentId?:Id; programId?:Id; batchId?:Id; startYear?:number; endYear?:number; path?:AcademicPathItem[]; counts?:AcademicCounts }
+export interface AcademicRecord { id:Id; code?:string; name:string; active:boolean; version:number; schoolId?:Id; departmentId?:Id; programId?:Id; batchId?:Id; startYear?:number; endYear?:number; path?:AcademicPathItem[]; counts?:AcademicCounts }
 export interface ProgramSubject { id:Id; programId:Id; subjectId:Id; semesterNumber:number|null }
 export interface AcademicTree { schools:AcademicRecord[]; departments:AcademicRecord[]; programs:AcademicRecord[]; batches:AcademicRecord[]; sections:AcademicRecord[]; subjects:AcademicRecord[]; programSubjects:ProgramSubject[] }
 export interface AcademicQuery extends PageRequest { search?:string; parentId?:Id; active?:boolean; needsCurriculum?:boolean }
-export interface AcademicCreateRequest { kind:AcademicKind; code:string; name:string; parentId?:Id; startYear?:number; endYear?:number }
+export interface AcademicCreateRequest { kind:AcademicKind; code?:string; name:string; parentId?:Id; startYear?:number; endYear?:number }
 export interface AcademicUpdateRequest { kind:AcademicKind; id:Id; version:number; code?:string; name?:string; active?:boolean; startYear?:number; endYear?:number }
 export interface StudentAcademicMapping { schoolId:Id; departmentId:Id; programId:Id; batchId:Id; sectionId:Id }
 export interface MappingReportItem { id:Id; studentId:string; rollNumber:string; name:string; version:number; mappingStatus:'NEEDS_MAPPING'; mappingNote:string|null; legacy:{department:string;semester:number;section:string} }

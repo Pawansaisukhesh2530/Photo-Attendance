@@ -190,7 +190,7 @@ export default function AdminReportsScreen() {
       { value: 'ALL', label: 'Whole institution' },
       ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
         value: d.id,
-        label: d.code,
+        label: d.name,
       })),
     ],
     [academic.data],
@@ -208,7 +208,7 @@ export default function AdminReportsScreen() {
       { value: 'ALL', label: 'All subjects' },
       ...(academic.data?.subjects ?? [])
         .filter((subject) => subject.active && (!linkedSubjectIds || linkedSubjectIds.has(subject.id)))
-        .map((subject) => ({ value: subject.id, label: `${subject.code} · ${subject.name}` })),
+        .map((subject) => ({ value: subject.id, label: `${subject.code ?? subject.name} · ${subject.name}` })),
     ];
   }, [academic.data, params.programId]);
 

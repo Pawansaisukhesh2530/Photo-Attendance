@@ -45,11 +45,26 @@ InsightFace runs detection, alignment, and recognition through ONNX Runtime with
 
 From the repository root, set `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8010/api/v1` in `.env` for web. For Expo Go on a phone, replace `127.0.0.1` with the computer's LAN IP and restart Metro with `npx expo start --lan`.
 
-Local administrator credentials are `admin@christuniversity.in` / `LocalTest123!`; change them before any shared deployment. Admin-created departments and faculty roles are stored in the settings API and populate the forms' dropdowns.
+Local administrator credentials are `admin@christuniversity.in` / `LocalTest123!`; change them before any shared deployment. Build the institution in **Academic structure** in this order: school, department, programme, batch, section, then subject. Link each subject to its programmes before creating classes. Faculty select a department, while students and classes select a section; the API derives their programme and department to prevent inconsistent spelling.
+
+The **Timetables** admin area is the timetable editor. Choose an active faculty member, add an assigned class, day, time, and room, and the API prevents faculty, class, section, and room overlaps. Faculty accounts receive the read-only `/timetable/mine` view.
+
+Only programmes and subjects store user-entered academic codes. Schools, departments, batches, and sections use their names and database relationships, and migration `0014_academic_codes` removes their legacy code columns. Class codes remain identifiers for class offerings and are separate from academic-structure codes.
 
 Every faculty account created through the administration API receives the configured default password `LocalTest123!`. The frontend does not send or generate a separate password.
 
 The worker accepts JPEG, PNG, HEIC, and HEIF uploads. A student enrolment image must contain exactly one clear face. Classroom images may contain many faces; unmatched detections remain `UNKNOWN` evidence and are not attached to an enrolled student.
+
+## Database migrations
+
+Both Windows startup scripts run `alembic upgrade head` before seeding or starting the API. The current migration head is `0014_academic_codes`. Migrations that alter constraints or columns use Alembic batch operations so the same history can upgrade PostgreSQL and the local SQLite database used for development and tests. Revision identifiers stay within the 32-character PostgreSQL `alembic_version.version_num` limit. Older local `.env` values that set `EDUTRACE_RECOGNITION_BACKEND=auto` or `opencv` are normalized to the supported InsightFace backend during startup.
+
+To inspect or apply migrations manually:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic heads
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
 
 ## Development checks
 

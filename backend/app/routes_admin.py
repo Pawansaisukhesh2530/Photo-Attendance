@@ -186,7 +186,7 @@ def create_faculty(payload: FacultyIn, db: Session = Depends(get_db), actor: Use
     )
     db.add(user); _flush(db, "That email address is already assigned to an account.")
     member = Faculty(user_id=user.id, employee_id=payload.employee_id, name=payload.name,
-                     department=department.code if department else payload.department,
+                     department=department.name if department else payload.department,
                      department_id=payload.department_id, designation=payload.designation)
     db.add(member); _flush(db, "That employee ID is already assigned to a faculty member."); audit(db, actor, "FACULTY_CREATED", member, after={"employee_id": member.employee_id})
     _commit(db); return faculty_json(db,member)
@@ -237,7 +237,7 @@ def patch_faculty(faculty_id: str,payload:FacultyPatch,db:Session=Depends(get_db
         user=db.get(User,item.user_id)
         user.email=str(email).lower()
     if payload.department_id is not None:
-        changes["department"] = department.code
+        changes["department"] = department.name
     for key,value in changes.items(): setattr(item,key,value)
     item.version+=1; audit(db,actor,"FACULTY_UPDATED",item,before=before,after={"status":item.status.value,"name":item.name}); _commit(db,"That email address is already assigned to an account."); return faculty_json(db,item)
 
@@ -333,7 +333,7 @@ def create_class(payload:ClassIn,db:Session=Depends(get_db),actor:User=Depends(a
     values=payload.model_dump()
     if normalized:
         link,section=normalized;program=db.get(AcademicProgram,link.program_id);department=db.get(Department,program.department_id);subject=db.get(Subject,link.subject_id)
-        values.update(subject=subject.name,department=department.code,section=section.code)
+        values.update(subject=subject.name,department=department.name,section=section.name)
         if link.semester_number is not None:values["semester"]=link.semester_number
     item=CourseClass(**values);db.add(item);_flush(db, "That class code and type combination is already in use.");audit(db,actor,"CLASS_CREATED",item,after={"code":item.code});_commit(db);return class_json(db,item)
 
@@ -387,7 +387,7 @@ def patch_class(class_id:str,payload:ClassPatch,db:Session=Depends(get_db),actor
     normalized=_normalized_class(db,changes.get("program_subject_id",item.program_subject_id),changes.get("section_id",item.section_id))
     if normalized:
         link,section=normalized;program=db.get(AcademicProgram,link.program_id);department=db.get(Department,program.department_id);subject=db.get(Subject,link.subject_id)
-        changes.update(subject=subject.name,department=department.code,section=section.code)
+        changes.update(subject=subject.name,department=department.name,section=section.name)
         if link.semester_number is not None:changes["semester"]=link.semester_number
     if payload.department is not None and not normalized and payload.department not in allowed_departments(db):
         raise Problem(422, "Invalid department", "Choose a department from the institution list.")

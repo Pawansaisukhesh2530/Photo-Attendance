@@ -188,7 +188,7 @@ export default function AdminTimetableEditorScreen() {
       />
       <SelectionSheet visible={picker === 'faculty'} title="Filter by faculty" searchable onClose={() => setPicker(null)} onSelect={(id) => { router.setParams({ facultyId:id }); setPicker(null); }} options={facultyRows.map((item) => ({ id:item.id, label:item.name, description:`${item.employeeId} · ${item.department ?? 'No department'}`, selected:item.id === facultyId }))} />
       <SelectionSheet visible={picker === 'class'} title="Filter by class" searchable onClose={() => setPicker(null)} onSelect={(id) => { router.setParams({ classId:id }); setPicker(null); }} options={classRows.map((item) => ({ id:item.id, label:item.displayCode, description:item.subject, selected:item.id === classId }))} />
-      <SelectionSheet visible={picker === 'section'} title="Filter by section" searchable onClose={() => setPicker(null)} onSelect={(id) => { router.setParams({ sectionId:id }); setPicker(null); }} options={(academic.data?.sections ?? []).filter((item) => item.active).map((item) => ({ id:item.id, label:item.name, description:item.path?.map((part) => part.code).join(' / ') ?? item.code, selected:item.id === sectionId }))} />
+      <SelectionSheet visible={picker === 'section'} title="Filter by section" searchable onClose={() => setPicker(null)} onSelect={(id) => { router.setParams({ sectionId:id }); setPicker(null); }} options={(academic.data?.sections ?? []).filter((item) => item.active).map((item) => ({ id:item.id, label:item.name, description:item.path?.map((part) => part.name).join(' / '), selected:item.id === sectionId }))} />
     </AdminScaffold>
   );
 }

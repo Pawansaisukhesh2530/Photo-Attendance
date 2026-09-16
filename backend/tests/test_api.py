@@ -622,11 +622,11 @@ def test_normalized_academic_mapping_and_enrolment_guard(client, identities):
         response=client.post(f"/api/v1/academic/{kind}",json=body,headers=headers)
         assert response.status_code==201,response.text
         return response.json()
-    school=create("schools",{"code":"SOC","name":"School of Computing"})
-    department=create("departments",{"code":"BCA","name":"Computer Applications","school_id":school["id"]})
+    school=create("schools",{"name":"School of Computing"})
+    department=create("departments",{"name":"Computer Applications","school_id":school["id"]})
     program=create("programs",{"code":"BCA","name":"Bachelor of Computer Applications","department_id":department["id"]})
-    batch=create("batches",{"code":"2026","name":"2026 to 2029","program_id":program["id"],"start_year":2026,"end_year":2029})
-    section=create("sections",{"code":"A","name":"Section A","batch_id":batch["id"]})
+    batch=create("batches",{"name":"2026 to 2029","program_id":program["id"],"start_year":2026,"end_year":2029})
+    section=create("sections",{"name":"Section A","batch_id":batch["id"]})
     subject=create("subjects",{"code":"BCA101","name":"Programming Fundamentals"})
     link=client.post(f"/api/v1/academic/programs/{program['id']}/subjects",json={"subject_id":subject["id"],"semester_number":1},headers=headers)
     assert link.status_code==201,link.text

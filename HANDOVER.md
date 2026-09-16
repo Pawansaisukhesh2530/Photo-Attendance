@@ -2,19 +2,19 @@
 
 ## Current state
 
-EduTrace Pro is an Expo/React Native attendance application backed by FastAPI and PostgreSQL. The checked-in application supports administrator and faculty roles, student/class/faculty management, class enrollment, face-photo enrollment, standard classroom-photo attendance, a guided panorama capture, gallery upload for testing, manual attendance correction, audit history, and CSV/XLSX/PDF/JSON exports.
+EduTrace Pro is an Expo/React Native attendance application backed by FastAPI and PostgreSQL. The checked-in application supports administrator and faculty roles, normalized academic-structure management, curriculum links, student/class/faculty management, class enrollment, timetable administration, face-photo enrollment, standard classroom-photo attendance, a guided panorama capture, gallery upload for testing, manual attendance correction, audit history, and CSV/XLSX/PDF/JSON exports.
+
+Administrators build the hierarchy as school, department, programme, batch, and section, then create subjects and link them to programmes. Only programmes and subjects have codes. Schools, departments, batches, and sections use names and database relationships; faculty records reference departments, while students and classes reference the normalized hierarchy.
 
 The local recognition backend uses InsightFace `buffalo_l`: SCRFD-10GF detects and aligns faces, and its ResNet50 ArcFace model produces normalized 512-dimensional embeddings. It accepts JPEG, PNG, and HEIC/HEIF phone images. Large classroom images are processed as a full image plus overlapping tiles, and boxes are mapped back to original coordinates for result overlays.
 
-Last validation performed on September 12, 2026:
+Last validation performed on September 16, 2026:
 
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - Backend test suite passed: 34 tests.
-- `npx expo-doctor` passed all 21 checks.
-- PostgreSQL readiness returned `{"status":"ready","database":"ok"}`.
-- Browser smoke tests passed for Dashboard, Academic Structure, Curriculum, Students, Faculty, Classes, Timetable, Attendance, Reports, and Settings with no error overlay.
-- The class workspace displayed its normalized academic path, readiness checks, lecturer, 20-student roster, and seven attendance sessions from PostgreSQL.
+- A fresh SQLite database migrated from the base revision through the remote academic-session migrations to `0014_academic_codes`.
+- Alembic revision identifiers fit PostgreSQL's 32-character `alembic_version.version_num` column.
 
 ## Repository layout
 
@@ -24,7 +24,7 @@ The current UI keeps the dark glass hierarchy and native `expo-glass-effect` sur
 - `src/api/` — HTTP boundary and backend response mapping.
 - `src/components/` — shared UI and domain components.
 - `backend/app/` — FastAPI routes, database models, storage, recognition engines, and worker.
-- `backend/alembic/` — PostgreSQL migrations.
+- `backend/alembic/` — Alembic migrations for PostgreSQL and local SQLite development databases.
 - `backend/tests/` — backend API tests.
 - `backend/data/private/` — local uploaded images; ignored by Git.
 - `backend/models/` — local ONNX model files; ignored by Git.
@@ -106,13 +106,15 @@ Change or remove seeded credentials before any shared or production deployment.
 ## Attendance workflow
 
 1. Sign in as the administrator.
-2. Create faculty, students, and classes.
-3. Assign faculty to a class and enroll students from the class detail page.
-4. Open each student and upload one or more clear enrollment photos. The mobile picker can upload them incrementally.
-5. Confirm at least one photo shows `Ready`; three to five varied photos are recommended. Each enrollment photo must contain exactly one clear, well-lit face.
-6. Sign in as faculty, select a class, and take attendance with Photo or Panorama.
-7. For desktop testing, use the class detail `Upload test photo` action.
-8. Review detected face boxes and unmatched faces, correct uncertain records if needed, and finalize attendance.
+2. In **Academic structure**, create a school, department, programme, batch, and section, then create subjects and link them to programmes.
+3. Create faculty and select their departments.
+4. Create students and classes using the academic hierarchy, assign faculty, and enrol students.
+5. Add timetable slots where required.
+6. Open each student and upload one or more clear enrollment photos. The mobile picker can upload them incrementally.
+7. Confirm at least one photo shows `Ready`; three to five varied photos are recommended. Each enrollment photo must contain exactly one clear, well-lit face.
+8. Sign in as faculty, select a class, and take attendance with Photo or Panorama.
+9. For desktop testing, use the class detail `Upload test photo` action.
+10. Review detected face boxes and unmatched faces, correct uncertain records if needed, and finalize attendance.
 
 The system deliberately does not guess an identity when the similarity score is below the configured threshold. A detected face can therefore remain unmatched even though face detection succeeded. Recognition quality depends on accepted enrollment photos of the same person under representative lighting and angles.
 

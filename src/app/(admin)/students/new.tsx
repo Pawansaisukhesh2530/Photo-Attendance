@@ -78,9 +78,9 @@ export default function NewStudentScreen() {
     try {
       const request = {
         name: name.trim(),
-        department: academic.data?.departments.find(x=>x.id===departmentId)?.code??'',
+        department: academic.data?.departments.find(x=>x.id===departmentId)?.name??'',
         semester: Number(semester),
-        section: academic.data?.sections.find(x=>x.id===sectionId)?.code??'',
+        section: academic.data?.sections.find(x=>x.id===sectionId)?.name??'',
         schoolId,departmentId,programId,batchId,sectionId,
       };
       const student = isEdit && existing

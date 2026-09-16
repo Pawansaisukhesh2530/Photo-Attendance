@@ -107,7 +107,7 @@ export default function AdminClassFormScreen() {
     setSeeded(true);
   }
 
-  const subjectOptions=useMemo(()=>{if(!academic.data||!hierarchy.programId)return[];return academic.data.programSubjects.filter(x=>x.programId===hierarchy.programId).map(link=>{const value=academic.data!.subjects.find(x=>x.id===link.subjectId);return value?{id:link.id,label:value.name,description:`${value.code}${link.semesterNumber?` · Semester ${link.semesterNumber}`:''}`,selected:link.id===programSubjectId}:null}).filter((x):x is NonNullable<typeof x>=>!!x)},[academic.data,hierarchy.programId,programSubjectId]);
+  const subjectOptions=useMemo(()=>{if(!academic.data||!hierarchy.programId)return[];return academic.data.programSubjects.filter(x=>x.programId===hierarchy.programId).map(link=>{const value=academic.data!.subjects.find(x=>x.id===link.subjectId);return value?{id:link.id,label:value.name,description:`${value.code??value.name}${link.semesterNumber?` · Semester ${link.semesterNumber}`:''}`,selected:link.id===programSubjectId}:null}).filter((x):x is NonNullable<typeof x>=>!!x)},[academic.data,hierarchy.programId,programSubjectId]);
 
   const semesterOptions = useMemo<FilterChipOption<string>[]>(() => {
     const count = settings?.semesterCount ?? 8;
@@ -262,7 +262,7 @@ export default function AdminClassFormScreen() {
         {isEdit || step===0 ? <><View style={styles.block}>
           <SectionHeader title="Academic context and class" divider />
           <Card>
-            <AcademicHierarchyFields value={hierarchy} locked={inherited} onChange={value=>{setHierarchy(value);setProgramSubjectId('');setSubject('');setFacultyId('');setStudentIds([]);const d=academic.data?.departments.find(x=>x.id===value.departmentId);const s=academic.data?.sections.find(x=>x.id===value.sectionId);setDepartment(d?.code??'');setSection(s?.code??'')}} />
+            <AcademicHierarchyFields value={hierarchy} locked={inherited} onChange={value=>{setHierarchy(value);setProgramSubjectId('');setSubject('');setFacultyId('');setStudentIds([]);const d=academic.data?.departments.find(x=>x.id===value.departmentId);const s=academic.data?.sections.find(x=>x.id===value.sectionId);setDepartment(d?.name??'');setSection(s?.name??'')}} />
             <View style={styles.gap} />
             <View style={styles.field}><Text variant="labelMd" color={palette.onSurface}>Programme subject</Text><Button label={subject||'Select subject'} variant="secondary" fullWidth disabled={!hierarchy.programId||subjectOptions.length===0} onPress={()=>setSubjectPickerOpen(true)}/></View>
             <View style={styles.gap} />

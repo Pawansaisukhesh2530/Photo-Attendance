@@ -107,7 +107,7 @@ export default function AdminFacultyListScreen() {
       ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
         value: d.id,
         // Abbreviated: full department names do not fit a chip on a phone.
-        label: d.code,
+        label: d.name,
       })),
     ],
     [academic.data],

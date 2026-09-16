@@ -45,6 +45,7 @@ KINDS = {
     "sections": (AcademicSection, "batch_id", AcademicBatch),
     "subjects": (Subject, None, None),
 }
+CODE_KINDS = {"programs", "subjects"}
 
 
 def _kind(kind: str):
@@ -114,7 +115,7 @@ def _academic_path(db: Session, kind: str, item) -> list[dict]:
                           ("batches", locals().get("batch")),
                           ("sections", item if kind == "sections" else None)):
         if record:
-            path.append({"kind": level, "id": record.id, "code": record.code,
+            path.append({"kind": level, "id": record.id, "code": getattr(record, "code", None),
                          "name": record.name})
     return path
 
@@ -188,7 +189,7 @@ def _commit(db: Session):
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise Problem(409, "Duplicate academic record", "That code already exists under the selected parent.") from exc
+        raise Problem(409, "Duplicate academic record", "That name or code already exists under the selected parent.") from exc
 
 
 def _flush(db: Session):
@@ -196,7 +197,7 @@ def _flush(db: Session):
         db.flush()
     except IntegrityError as exc:
         db.rollback()
-        raise Problem(409, "Duplicate academic record", "That code already exists under the selected parent.") from exc
+        raise Problem(409, "Duplicate academic record", "That name or code already exists under the selected parent.") from exc
 
 
 @router.get("/tree")
@@ -395,7 +396,10 @@ def list_level(kind: str, search: str | None = None, parent_id: str | None = Que
     q = select(model).order_by(model.name)
     if search:
         term = f"%{search.strip()}%"
-        q = q.where(or_(model.name.ilike(term), model.code.ilike(term)))
+        criteria = [model.name.ilike(term)]
+        if hasattr(model, "code"):
+            criteria.append(model.code.ilike(term))
+        q = q.where(or_(*criteria))
     if parent_key and parent_id:
         q = q.where(getattr(model, parent_key) == parent_id)
     if active is not None:
@@ -416,7 +420,13 @@ def list_level(kind: str, search: str | None = None, parent_id: str | None = Que
 @router.post("/{kind}", status_code=201)
 def create_level(kind: str, payload: AcademicCreate, db: Session = Depends(get_db), actor: User = Depends(admin)):
     model, parent_key, parent_model = _kind(kind)
-    values = {"code": _clean(payload.code).upper(), "name": _clean(payload.name)}
+    values = {"name": _clean(payload.name)}
+    if kind in CODE_KINDS:
+        if not payload.code:
+            raise Problem(422, "Code required", "Programmes and subjects require a code.")
+        values["code"] = _clean(payload.code).upper()
+    elif payload.code is not None:
+        raise Problem(422, "Code not supported", "Only programmes and subjects use codes.")
     if parent_key:
         parent_id = getattr(payload, parent_key)
         parent = db.get(parent_model, parent_id) if parent_id else None
@@ -446,6 +456,8 @@ def update_level(kind: str, item_id: str, payload: AcademicPatch, db: Session = 
     before = _out(item)
     values = payload.model_dump(exclude={"version"}, exclude_none=True)
     if "code" in values:
+        if kind not in CODE_KINDS:
+            raise Problem(422, "Code not supported", "Only programmes and subjects use codes.")
         values["code"] = _clean(values["code"]).upper()
     if "name" in values:
         values["name"] = _clean(values["name"])

@@ -288,7 +288,7 @@ export default function AdminSettingsScreen() {
                   .map((department) => (
                     <Badge
                       key={department.id}
-                      label={`${department.code} · ${department.name}`}
+                      label={department.name}
                       icon="institution"
                     />
                   ))}

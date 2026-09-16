@@ -23,14 +23,19 @@ INDEXES = {
 
 def upgrade() -> None:
     for table, columns in INDEXES.items():
-        existing = {item["name"] for item in sa.inspect(op.get_bind()).get_indexes(table)}
+        inspector = sa.inspect(op.get_bind())
+        available = {item["name"] for item in inspector.get_columns(table)}
+        existing = {item["name"] for item in inspector.get_indexes(table)}
         for column in columns:
             name = f"ix_{table}_{column}"
-            if name not in existing:
+            if column in available and name not in existing:
                 op.create_index(name, table, [column], unique=False)
 
 
 def downgrade() -> None:
     for table, columns in reversed(tuple(INDEXES.items())):
+        existing = {item["name"] for item in sa.inspect(op.get_bind()).get_indexes(table)}
         for column in reversed(columns):
-            op.drop_index(f"ix_{table}_{column}", table_name=table)
+            name = f"ix_{table}_{column}"
+            if name in existing:
+                op.drop_index(name, table_name=table)

@@ -127,7 +127,7 @@ export default function AdminStudentsScreen() {
       { value: 'ALL', label: 'All departments' },
       ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
         value: d.id,
-        label: d.code,
+        label: d.name,
       })),
     ],
     [academic.data],
@@ -137,11 +137,11 @@ export default function AdminStudentsScreen() {
     if (row.mappingStatus === 'NEEDS_MAPPING') return `Needs mapping · ${row.department} · Sem ${row.semester} · ${row.section}`;
     const tree=academic.data;
     if(!tree) return row.department;
-    const school=tree.schools.find(item=>item.id===row.schoolId)?.code;
-    const departmentCode=tree.departments.find(item=>item.id===row.departmentId)?.code;
+    const school=tree.schools.find(item=>item.id===row.schoolId)?.name;
+    const departmentCode=tree.departments.find(item=>item.id===row.departmentId)?.name;
     const program=tree.programs.find(item=>item.id===row.programId)?.code;
     const batch=tree.batches.find(item=>item.id===row.batchId)?.name;
-    const section=tree.sections.find(item=>item.id===row.sectionId)?.code;
+    const section=tree.sections.find(item=>item.id===row.sectionId)?.name;
     return [school,departmentCode,program,batch,section].filter(Boolean).join(' · ') || row.department;
   },[academic.data]);
 

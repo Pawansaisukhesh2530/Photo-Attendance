@@ -22,7 +22,7 @@ export default function CurriculumScreen() {
             {subjects.data?.items.length ? subjects.data.items.map((subject, index) => (
               <AnimatedPressable key={subject.id} onPress={() => router.push({ pathname: '/(admin)/academic-structure', params: { kind: 'subjects', selected: subject.id } })} style={[styles.subject, index < subjects.data.items.length - 1 && styles.divider]}>
                 <View style={styles.subjectIcon}><Icon name="reports" color={palette.primary} /></View>
-                <View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{subject.name}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{subject.code} · {subject.counts?.programmes ?? 0} programmes · {subject.counts?.classes ?? 0} classes</Text></View>
+                <View style={styles.flex}><Text variant="bodyLg" color={palette.onSurface}>{subject.name}</Text><Text variant="labelMd" color={palette.onSurfaceVariant}>{subject.code ?? subject.name} · {subject.counts?.programmes ?? 0} programmes · {subject.counts?.classes ?? 0} classes</Text></View>
                 <Icon name="chevronRight" color={palette.outline} />
               </AnimatedPressable>
             )) : <Text color={palette.onSurfaceVariant} style={styles.empty}>{archived?'No archived subjects match.':'No active subjects match.'}</Text>}

@@ -116,7 +116,7 @@ export default function AdminClassesScreen() {
       { value: 'ALL', label: 'All departments' },
       ...(academic.data?.departments.filter(d=>d.active) ?? []).map((d) => ({
         value: d.id,
-        label: d.code,
+        label: d.name,
       })),
     ],
     [academic.data],

@@ -90,20 +90,20 @@ def seed_demo(password:str="LocalTest123!")->None:
         student=db.scalar(select(Student).where(Student.student_id=="TEST-S001"))
         if not student:student=Student(student_id="TEST-S001",roll_number="TEST-R001",name="Test Student",department="CSE",semester=5,section="A");db.add(student);db.flush()
 
-        school = db.scalar(select(School).where(School.code == "CHRIST"))
+        school = db.scalar(select(School).where(School.name == "Christ University"))
         if not school:
-            school = School(code="CHRIST", name="Christ University"); db.add(school); db.flush()
-        department = db.scalar(select(Department).where(Department.school_id == school.id, Department.code == "CSE"))
+            school = School(name="Christ University"); db.add(school); db.flush()
+        department = db.scalar(select(Department).where(Department.school_id == school.id, Department.name == "Computer Science and Engineering"))
         if not department:
-            department = Department(school_id=school.id, code="CSE", name="Computer Science and Engineering"); db.add(department); db.flush()
+            department = Department(school_id=school.id, name="Computer Science and Engineering"); db.add(department); db.flush()
         program = db.scalar(select(AcademicProgram).where(AcademicProgram.department_id == department.id, AcademicProgram.code == "BTECH-CSE"))
         if not program:
             program = AcademicProgram(department_id=department.id, code="BTECH-CSE", name="B.Tech Computer Science"); db.add(program); db.flush()
-        batch = db.scalar(select(AcademicBatch).where(AcademicBatch.program_id == program.id, AcademicBatch.code == "2024"))
+        batch = db.scalar(select(AcademicBatch).where(AcademicBatch.program_id == program.id, AcademicBatch.name == "2024–2028"))
         if not batch:
-            batch = AcademicBatch(program_id=program.id, code="2024", name="2024–2028", start_year=2024, end_year=2028); db.add(batch); db.flush()
-        if not db.scalar(select(AcademicSection).where(AcademicSection.batch_id == batch.id, AcademicSection.code == "A")):
-            db.add(AcademicSection(batch_id=batch.id, code="A", name="Section A"))
+            batch = AcademicBatch(program_id=program.id, name="2024–2028", start_year=2024, end_year=2028); db.add(batch); db.flush()
+        if not db.scalar(select(AcademicSection).where(AcademicSection.batch_id == batch.id, AcademicSection.name == "A")):
+            db.add(AcademicSection(batch_id=batch.id, name="A"))
         for code, name in (("CS201", "Data Structures & Algorithms"), ("CS401", "Machine Learning"), ("CS301", "Computer Networks")):
             subject = db.scalar(select(Subject).where(Subject.code == code))
             if not subject:

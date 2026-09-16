@@ -139,7 +139,7 @@ export const academicApi: AcademicService = {
     return record(await request<any>(`academic/${payload.kind}`, {
       method: 'POST',
       body: {
-        code: payload.code,
+        ...(payload.code ? { code: payload.code } : {}),
         name: payload.name,
         ...(key && payload.parentId ? { [key]: payload.parentId } : {}),
         start_year: payload.startYear,
@@ -151,7 +151,7 @@ export const academicApi: AcademicService = {
     return record(await request<any>(`academic/${payload.kind}/${payload.id}`, {
       method: 'PATCH',
       body: {
-        code: payload.code,
+        ...(payload.code ? { code: payload.code } : {}),
         name: payload.name,
         active: payload.active,
         start_year: payload.startYear,

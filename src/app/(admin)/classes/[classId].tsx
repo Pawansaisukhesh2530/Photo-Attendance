@@ -92,11 +92,11 @@ export default function AdminClassDetailScreen() {
   const academicPath=useMemo(()=>{
     if(!course||!academic) return course?.department ?? 'Academic placement not set';
     return [
-      academic.schools.find(item=>item.id===course.schoolId)?.code,
-      academic.departments.find(item=>item.id===course.departmentId)?.code,
+      academic.schools.find(item=>item.id===course.schoolId)?.name,
+      academic.departments.find(item=>item.id===course.departmentId)?.name,
       academic.programs.find(item=>item.id===course.programId)?.code,
       academic.batches.find(item=>item.id===course.batchId)?.name,
-      academic.sections.find(item=>item.id===course.sectionId)?.code,
+      academic.sections.find(item=>item.id===course.sectionId)?.name,
     ].filter(Boolean).join(' · ') || course.department || 'Academic placement not set';
   },[academic,course]);
 

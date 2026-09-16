@@ -8,6 +8,9 @@ test_root.mkdir(parents=True,exist_ok=True)
 os.environ["EDUTRACE_DATABASE_URL"] = f"sqlite:///{(test_root/'test-edutrace.db').as_posix()}"
 os.environ["EDUTRACE_LOCAL_STORAGE_PATH"] = str(test_root/"private")
 os.environ["EDUTRACE_JWT_SECRET"] = "test-secret-that-is-long-enough-for-tests"
+os.environ["EDUTRACE_STORAGE_BACKEND"] = "local"
+os.environ["EDUTRACE_QUEUE_BACKEND"] = "local"
+os.environ["EDUTRACE_RECOGNITION_BACKEND"] = "insightface"
 
 import pytest
 from fastapi.testclient import TestClient
